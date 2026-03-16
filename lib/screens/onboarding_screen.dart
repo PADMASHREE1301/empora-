@@ -21,7 +21,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   bool _saving = false;
 
   late AnimationController _fadeCtrl;
-  late Animation<double> _fadeAnim;
 
   // ── Form data ──────────────────────────────────────────────────────────────
   // Page 1 — Personal
@@ -62,7 +61,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     super.initState();
     _fadeCtrl = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 400));
-    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
   }
 

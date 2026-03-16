@@ -20,7 +20,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String    _plan      = 'monthly';
   int       _monthlyPrice = 999;
   int       _yearlyPrice  = 7999;
-  bool      _pricingLoaded = false;
   bool      _loading   = false;
   Razorpay? _razorpay;
 
@@ -59,10 +58,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (mounted) setState(() {
         _monthlyPrice  = (pricing['monthly'] as num).toInt();
         _yearlyPrice   = (pricing['yearly']  as num).toInt();
-        _pricingLoaded = true;
       });
     } catch (_) {
-      if (mounted) setState(() => _pricingLoaded = true);
+      if (mounted) setState(() {});
     }
   }
 
