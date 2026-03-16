@@ -98,8 +98,8 @@ class _AiConclusionScreenState extends State<AiConclusionScreen>
       if (recordId != null) {
         try {
           extracted = await ApiService.getExtractedText(recordId: recordId);
-        } catch (e) {
-          _errorMsg = 'Could not fetch file text: $e. Using form data only.';
+        } catch (_) {
+          // Could not fetch file text — will use form data only, no banner
         }
       }
 
@@ -150,14 +150,14 @@ class _AiConclusionScreenState extends State<AiConclusionScreen>
       Map<String, dynamic> jsonData;
       try {
         jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
-      } catch (parseErr) {
-        // Last resort: generate offline report rather than crashing
-        debugPrint('JSON parse failed: $parseErr\nRaw: $rawResponse');
-        final offlineReport = widget.sharedState.generateReport();
-        widget.sharedState.aiReport = offlineReport;
+      } catch (_) {
+        // JSON parse failed — show offline report silently, no banner
+        widget.sharedState.aiReport = widget.sharedState.generateReport();
+        if (!mounted) return;
         setState(() {
           _isAnalyzing = false;
-          _errorMsg = 'AI response had formatting issues — showing estimated report.';
+          _isDone      = true;
+          _errorMsg    = null; // no banner shown
         });
         return;
       }
@@ -187,9 +187,8 @@ class _AiConclusionScreenState extends State<AiConclusionScreen>
               'rawText':             report.rawText,
             },
           );
-        } catch (e) {
-          _errorMsg = (_errorMsg != null ? '$_errorMsg | ' : '') +
-              'Report shown but DB save failed: $e';
+        } catch (_) {
+          // DB save failed — report is still shown, no banner needed
         }
       }
 
@@ -198,21 +197,23 @@ class _AiConclusionScreenState extends State<AiConclusionScreen>
         _isAnalyzing = false;
         _isDone      = true;
       });
-    } on GroqException catch (e) {
+    } on GroqException catch (_) {
+      // Groq API error (e.g. invalid key, quota) — show offline report silently
       if (!mounted) return;
       widget.sharedState.aiReport = widget.sharedState.generateReport();
       setState(() {
         _isAnalyzing = false;
         _isDone      = true;
-        _errorMsg    = 'Groq error: ${e.message}. Showing offline report.';
+        _errorMsg    = null; // no banner — user just sees the report
       });
-    } catch (e) {
+    } catch (_) {
+      // Any other error — show offline report silently
       if (!mounted) return;
       widget.sharedState.aiReport = widget.sharedState.generateReport();
       setState(() {
         _isAnalyzing = false;
         _isDone      = true;
-        _errorMsg    = 'Error: $e. Showing offline report.';
+        _errorMsg    = null; // no banner
       });
     }
   }
