@@ -11,9 +11,9 @@ class GroqService {
   // Get a FREE key at: https://console.groq.com → API Keys → Create API Key
   // In production load from dart_dotenv / flutter_secure_storage.
   // ──────────────────────────────────────────────────────────────────────────
-  final String apiKey = const String.fromEnvironment('GROQ_API_KEY');
+  static const String _apiKey = String.fromEnvironment('GROQ_API_KEY');
   static const String _baseUrl = 'https://api.groq.com/openai/v1/chat/completions';
-  static const String _model   = 'llama-3.3-70b-versatile';
+  static const String _model = 'mixtral-8x7b-32768';
 
   /// Sends [prompt] to Groq and returns the assistant message content.
   /// Throws [GroqException] on any error.
