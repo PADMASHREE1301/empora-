@@ -3,6 +3,7 @@
 
 const Groq = require('groq-sdk');
 const Chat = require('../models/Chat');
+const User = require('../models/User');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -171,12 +172,36 @@ Your style:
 - Remember their team size, industry, and customer base`,
 };
 
+// ─── Build founder profile context string ─────────────────────────────────────
+function buildFounderContext(founderProfile) {
+  if (!founderProfile || !founderProfile.isComplete) return '';
+
+  const lines = [];
+
+  if (founderProfile.businessName)  lines.push(`Business Name: ${founderProfile.businessName}`);
+  if (founderProfile.industry)       lines.push(`Industry/Sector: ${founderProfile.industry}`);
+  if (founderProfile.businessStage)  lines.push(`Business Stage: ${founderProfile.businessStage}`);
+  if (founderProfile.businessType)   lines.push(`Business Structure: ${founderProfile.businessType}`);
+  if (founderProfile.teamSize)       lines.push(`Team Size: ${founderProfile.teamSize}`);
+  if (founderProfile.annualRevenue)  lines.push(`Annual Revenue: ${founderProfile.annualRevenue}`);
+  if (founderProfile.fundingStage)   lines.push(`Funding Stage: ${founderProfile.fundingStage}`);
+  if (founderProfile.yearFounded)    lines.push(`Year Founded: ${founderProfile.yearFounded}`);
+  if (founderProfile.city)           lines.push(`Location: ${founderProfile.city}${founderProfile.state ? ', ' + founderProfile.state : ''}`);
+  if (founderProfile.primaryGoal)    lines.push(`Primary Goal: ${founderProfile.primaryGoal}`);
+  if (founderProfile.challenges?.length > 0) lines.push(`Key Challenges: ${founderProfile.challenges.join(', ')}`);
+
+  if (lines.length === 0) return '';
+
+  return `\n\n=== FOUNDER PROFILE (USE THIS TO PERSONALIZE ADVICE) ===\n${lines.join('\n')}\nIMPORTANT: Use this profile to give personalized, specific advice. Do NOT ask them for information you already have above.`;
+}
+
 // ─── Helper: build messages array with memory ─────────────────────────────────
-function buildMessages(module, contextSummary, keyFacts, recentMessages, newUserMessage) {
+function buildMessages(module, contextSummary, keyFacts, recentMessages, newUserMessage, founderProfile) {
   const systemContent = MODULE_PROMPTS[module] || MODULE_PROMPTS.taxation;
 
-  // Append memory context to system prompt
-  let memoryContext = '';
+  // Append founder profile + memory context to system prompt
+  let memoryContext = buildFounderContext(founderProfile);
+
   if (contextSummary) {
     memoryContext += `\n\n=== CONVERSATION SUMMARY SO FAR ===\n${contextSummary}`;
   }
@@ -195,7 +220,7 @@ function buildMessages(module, contextSummary, keyFacts, recentMessages, newUser
 
 // ─── Helper: extract key facts from assistant response ────────────────────────
 async function extractKeyFacts(module, existingFacts, conversation) {
-  if (conversation.length < 4) return existingFacts; // Not enough to extract yet
+  if (conversation.length < 4) return existingFacts;
 
   try {
     const factPrompt = `From this conversation about ${module}, extract 3-8 key facts about the founder's situation.
@@ -221,7 +246,7 @@ Return updated facts array (merge old + new, remove duplicates, max 10 facts):`;
     const facts = JSON.parse(raw);
     return Array.isArray(facts) ? facts : existingFacts;
   } catch {
-    return existingFacts; // Silently fail — not critical
+    return existingFacts;
   }
 }
 
@@ -240,6 +265,10 @@ exports.sendMessage = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid module.' });
     }
 
+    // ── Load founder profile for personalized context ───────────────────────
+    const userDoc = await User.findById(userId).select('founderProfile');
+    const founderProfile = userDoc?.founderProfile || null;
+
     // ── Load or create chat thread ──────────────────────────────────────────
     let chat = await Chat.findOne({ userId, module });
     if (!chat) {
@@ -249,13 +278,14 @@ exports.sendMessage = async (req, res) => {
     // ── Keep last 20 messages for context window ────────────────────────────
     const recentMessages = chat.messages.slice(-20);
 
-    // ── Call Groq ───────────────────────────────────────────────────────────
+    // ── Call Groq with founder profile context ──────────────────────────────
     const groqMessages = buildMessages(
       module,
       chat.contextSummary,
       chat.keyFacts,
       recentMessages,
-      message.trim()
+      message.trim(),
+      founderProfile,
     );
 
     const completion = await groq.chat.completions.create({
@@ -276,7 +306,7 @@ exports.sendMessage = async (req, res) => {
       chat.keyFacts = await extractKeyFacts(module, chat.keyFacts, chat.messages);
     }
 
-    // ── Summarize context every 30 messages to prevent context overflow ─────
+    // ── Summarize context every 30 messages ────────────────────────────────
     if (chat.messages.length % 30 === 0) {
       try {
         const summaryCompletion = await groq.chat.completions.create({
@@ -318,7 +348,6 @@ exports.getHistory = async (req, res) => {
       return res.status(200).json({ success: true, messages: [], keyFacts: [] });
     }
 
-    // Return last 50 messages for display
     return res.status(200).json({
       success: true,
       messages: chat.messages.slice(-50),

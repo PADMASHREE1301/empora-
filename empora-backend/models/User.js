@@ -24,13 +24,11 @@ const UserSchema = new mongoose.Schema(
       minlength: 6,
       select: false,
     },
-    // ── CHANGED: was ['founder','investor','admin'], now ['free','membership','admin'] ──
     role: {
       type: String,
       enum: ['free', 'membership', 'admin'],
       default: 'free',
     },
-    // ── NEW: membership fields ────────────────────────────────────────────────
     membershipStatus: {
       type: String,
       enum: ['inactive', 'active', 'expired'],
@@ -43,17 +41,33 @@ const UserSchema = new mongoose.Schema(
     },
     membershipStartDate: { type: Date, default: null },
     membershipEndDate:   { type: Date, default: null },
-    // ─────────────────────────────────────────────────────────────────────────
     profilePicture: { type: String, default: null },
     lastLogin:      { type: Date,   default: null  },
     isActive:       { type: Boolean, default: true },
+
+    // ── Founder Profile ───────────────────────────────────────────────────────
+    founderProfile: {
+      phone:         { type: String, default: null },
+      city:          { type: String, default: null },
+      state:         { type: String, default: null },
+      businessName:  { type: String, default: null },
+      businessType:  { type: String, default: null },
+      industry:      { type: String, default: null },
+      businessStage: { type: String, default: null },
+      teamSize:      { type: String, default: null },
+      annualRevenue: { type: String, default: null },
+      fundingStage:  { type: String, default: null },
+      yearFounded:   { type: Number, default: null },
+      primaryGoal:   { type: String, default: null },
+      challenges:    { type: [String], default: [] },
+      isComplete:    { type: Boolean, default: false },
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// ── NEW helper method ─────────────────────────────────────────────────────────
 UserSchema.methods.hasMembership = function () {
   return (
     this.role === 'membership' &&

@@ -21,6 +21,7 @@ import 'package:empora/screens/cyber/cyber_screen.dart';
 import 'package:empora/screens/restructure/restructure_screen.dart';
 import 'package:empora/screens/loans/loans_screen.dart';
 import 'package:empora/screens/payment_screen.dart';
+import 'package:empora/screens/onboarding_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -274,6 +275,41 @@ class _HomeTab extends StatelessWidget {
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
+
+        // ── Complete Profile Banner ───────────────────────────────────────────
+        if (auth.user?.founderProfileComplete != true)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: GestureDetector(
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const OnboardingScreen())),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [BoxShadow(color: AppTheme.primary, blurRadius: 12, offset: Offset(0, 4))],
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.person_add_outlined, color: Colors.white, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Complete Your Profile', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                        Text('Help AI give you personalized advice', style: GoogleFonts.inter(color: Colors.white, fontSize: 11)),
+                      ]),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                      child: Text('Complete', style: GoogleFonts.inter(color: AppTheme.primary, fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          ),
 
         // ── Upgrade Banner (free users only) ─────────────────────────────────
         if (!auth.isMember && !auth.isAdmin)
