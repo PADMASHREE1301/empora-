@@ -9,7 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
 
-static const String _baseUrl = 'https://empora-ex0f.onrender.com/api';  
+static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
+
   // ── Token helpers ─────────────────────────────────────────────────────────
   static Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
