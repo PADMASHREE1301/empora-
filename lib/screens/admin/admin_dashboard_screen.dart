@@ -129,7 +129,11 @@ class _OverviewTabState extends State<_OverviewTab> {
     setState(() { _loading = true; _error = null; });
     try {
       final res = await ApiService.adminGet('/dashboard');
-      setState(() { _stats = res; _loading = false; });
+      // Some backends wrap the payload under 'data'
+      final payload = (res['data'] is Map<String, dynamic>)
+          ? res['data'] as Map<String, dynamic>
+          : res;
+      setState(() { _stats = payload; _loading = false; });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
     }
@@ -140,16 +144,18 @@ class _OverviewTabState extends State<_OverviewTab> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return _ErrorView(onRetry: _load, message: _error!);
 
-    final s           = (_stats['stats'] ?? _stats) as Map<String, dynamic>;
-    final usersMap    = (s['users']       ?? {}) as Map<String, dynamic>;
-    final subsMap     = (s['submissions'] ?? {}) as Map<String, dynamic>;
-    final totalUsers  = usersMap['total']      ?? _stats['totalUsers']      ?? 0;
-    final memberUsers = usersMap['membership'] ?? _stats['memberUsers']     ?? 0;
-    final freeUsers   = usersMap['free']       ?? (totalUsers - memberUsers);
-    final totalSubs   = subsMap['total']       ?? _stats['totalSubmissions'] ?? 0;
-    final pending     = subsMap['pending']     ?? _stats['pendingApprovals'] ?? 0;
-    final approved    = subsMap['approved']    ?? 0;
-    final rejected    = subsMap['rejected']    ?? 0;
+    // Handle all possible response shapes from /api/admin/dashboard
+    final raw         = _stats['data'] ?? _stats['stats'] ?? _stats;
+    final s           = raw is Map<String, dynamic> ? raw : <String, dynamic>{};
+    final usersMap    = (s['users']       as Map<String, dynamic>?) ?? {};
+    final subsMap     = (s['submissions'] as Map<String, dynamic>?) ?? {};
+    final totalUsers  = (usersMap['total']      ?? s['totalUsers']      ?? _stats['totalUsers']      ?? 0) as num;
+    final memberUsers = (usersMap['membership'] ?? s['memberUsers']     ?? _stats['memberUsers']     ?? 0) as num;
+    final freeUsers   = (usersMap['free']       ?? s['freeUsers']       ?? (totalUsers - memberUsers)) as num;
+    final totalSubs   = (subsMap['total']       ?? s['totalSubmissions'] ?? _stats['totalSubmissions'] ?? 0) as num;
+    final pending     = (subsMap['pending']     ?? s['pendingApprovals'] ?? _stats['pendingApprovals'] ?? 0) as num;
+    final approved    = (subsMap['approved']    ?? s['approvedCount']    ?? 0) as num;
+    final rejected    = (subsMap['rejected']    ?? s['rejectedCount']    ?? 0) as num;
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -656,7 +662,6 @@ class _SubmissionsTabState extends State<_SubmissionsTab>
                         itemBuilder: (_, i) {
                           final s  = _submissions[i] as Map<String, dynamic>;
                           final id = (s['_id'] ?? '').toString();
-                          final status = s['status'] as String? ?? 'pending';
                           return _SubmissionCard(
                             data: s,
                             onApprove: () => _action(id, 'approve'),
