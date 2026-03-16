@@ -1,9 +1,14 @@
 // lib/screens/stratic/stratic_conclusion_screen.dart
 
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../../theme/app_theme.dart';
 import '../../models/stratic_model.dart';
 import '../../services/api_service.dart';
@@ -555,23 +560,29 @@ class _StraticConclusionScreenState
         ]),
       ),
       const SizedBox(height: 16),
+
+      // ── Abstract card ─────────────────────────────────────────────────────
+      _abstractCard(r),
+      const SizedBox(height: 16),
+
       Row(children: [
         Expanded(child: OutlinedButton.icon(
           onPressed: () => _viewReport(r),
           icon: const Icon(Icons.visibility_outlined, size: 15),
           label: Text('View', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
           style: OutlinedButton.styleFrom(
-              foregroundColor: _teal, side: BorderSide(color: _teal),
+              foregroundColor: _teal, side: const BorderSide(color: _teal),
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         )),
         const SizedBox(width: 10),
-        Expanded(child: OutlinedButton.icon(
+        Expanded(child: ElevatedButton.icon(
           onPressed: () => _downloadReport(r),
-          icon: const Icon(Icons.download_rounded, size: 15),
-          label: Text('Download', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
-          style: OutlinedButton.styleFrom(
-              foregroundColor: _teal, side: BorderSide(color: _teal),
+          icon: const Icon(Icons.picture_as_pdf, size: 15, color: Colors.white),
+          label: Text('Download PDF',
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: _teal,
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         )),
@@ -591,6 +602,68 @@ class _StraticConclusionScreenState
         ),
       ),
     ]);
+  }
+
+  Widget _abstractCard(StraticAiReport r) {
+    final items = [
+      if (r.strengths.isNotEmpty)    _AbstractItem(icon: Icons.check_circle_outline,   color: AppTheme.success, label: 'Top Strength',     text: r.strengths.first),
+      if (r.risks.isNotEmpty)        _AbstractItem(icon: Icons.warning_amber_rounded,   color: AppTheme.error,   label: 'Key Risk',         text: r.risks.first),
+      if (r.opportunities.isNotEmpty)_AbstractItem(icon: Icons.lightbulb_outline_rounded, color: AppTheme.warning, label: 'Top Opportunity',  text: r.opportunities.first),
+      if (r.recommendations.isNotEmpty)_AbstractItem(icon: Icons.checklist_rounded,     color: _teal,            label: 'Top Recommendation', text: r.recommendations.first),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.divider),
+        boxShadow: [BoxShadow(color: _teal.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 32, height: 32,
+            decoration: BoxDecoration(color: _teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(9)),
+            child: const Icon(Icons.auto_awesome_rounded, color: _teal, size: 16)),
+          const SizedBox(width: 10),
+          Text('Strategy Abstract',
+              style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: r.overallScore >= 0.7 ? AppTheme.success.withValues(alpha: 0.1)
+                  : r.overallScore >= 0.45 ? AppTheme.warning.withValues(alpha: 0.1)
+                  : AppTheme.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text('${(r.overallScore * 100).toInt()}% Score',
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700,
+                    color: r.overallScore >= 0.7 ? AppTheme.success
+                        : r.overallScore >= 0.45 ? AppTheme.warning : AppTheme.error)),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        const Divider(height: 1),
+        const SizedBox(height: 12),
+        ...items.map((item) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(width: 34, height: 34,
+              decoration: BoxDecoration(color: item.color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(9)),
+              child: Icon(item.icon, color: item.color, size: 16)),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(item.label,
+                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
+                      color: item.color, letterSpacing: 0.3)),
+              const SizedBox(height: 2),
+              Text(item.text, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textPrimary, height: 1.4)),
+            ])),
+          ]),
+        )),
+      ]),
+    );
   }
 
   void _viewReport(StraticAiReport r) {
@@ -655,63 +728,240 @@ class _StraticConclusionScreenState
     ),
   );
 
-  void _downloadReport(StraticAiReport r) {
-    final content = [
-      'AI Strategy Report', '=' * 50, '',
-      'VERDICT: ${r.verdict}',
-      'OVERALL SCORE: ${(r.overallScore * 100).toStringAsFixed(0)}%',
-      '', 'SUMMARY', '-' * 30, r.summary,
-      '', 'STRENGTHS', '-' * 30, ...r.strengths.map((s) => '• $s'),
-      '', 'KEY RISKS', '-' * 30, ...r.risks.map((s) => '• $s'),
-      '', 'OPPORTUNITIES', '-' * 30, ...r.opportunities.map((s) => '• $s'),
-      '', 'RECOMMENDATIONS', '-' * 30, ...r.recommendations.map((s) => '• $s'),
-      '', 'FINAL RECOMMENDATION', '-' * 30, r.finalRecommendation,
-    ].join('\n');
-    _showDownloadSheet('AI Strategy Report', content);
-  }
+  Future<void> _downloadReport(StraticAiReport r) async {
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName  = 'Empora_Strategy_Report_$timestamp.pdf';
 
-  void _showDownloadSheet(String title, String content) {
-    showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
-        decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        child: Column(children: [
-          const SizedBox(height: 12),
-          Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-            child: Row(children: [
-              Expanded(child: Text(title,
-                  style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w700))),
-              TextButton.icon(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: content));
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: const Text('Report copied to clipboard!', style: TextStyle(color: Colors.white)),
-                    backgroundColor: Colors.green.shade700, behavior: SnackBarBehavior.floating,
-                  ));
-                },
-                icon: const Icon(Icons.copy_rounded, size: 16),
-                label: const Text('Copy All'),
-              ),
-              IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(context)),
+      // ── PDF colours ──────────────────────────────────────────────────────
+      final darkColor  = PdfColor.fromHex('054B60');
+      final tealColor  = PdfColor.fromHex('0D6E8A');
+      final blueColor  = PdfColor.fromHex('1A3A6B');
+      final goldColor  = PdfColor.fromHex('F4A700');
+      final lightGray  = PdfColor.fromHex('F5F7FB');
+      final successClr = PdfColor.fromHex('1A7A4A');
+      final errorClr   = PdfColor.fromHex('C0392B');
+      final grayColor  = PdfColor.fromHex('64748B');
+      final accentClr  = PdfColor.fromHex('E67E22');
+
+      final verdictClr = r.overallScore >= 0.7
+          ? successClr : r.overallScore >= 0.45 ? goldColor : errorClr;
+
+      // ── Helpers ──────────────────────────────────────────────────────────
+      pw.Widget secTitle(String text, {PdfColor? bg}) => pw.Container(
+        color: bg ?? darkColor,
+        padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        margin: const pw.EdgeInsets.only(bottom: 8, top: 14),
+        child: pw.Text(text,
+            style: pw.TextStyle(fontSize: 12,
+                fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+      );
+
+      pw.Widget scoreBar(String label, double score, PdfColor color) =>
+          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text(label, style: pw.TextStyle(fontSize: 10, color: grayColor)),
+              pw.Text('${(score * 100).toInt()}%',
+                  style: pw.TextStyle(fontSize: 10,
+                      fontWeight: pw.FontWeight.bold, color: darkColor)),
+            ]),
+            pw.SizedBox(height: 4),
+            pw.Stack(children: [
+              pw.Container(height: 8, width: double.infinity,
+                  decoration: pw.BoxDecoration(
+                      color: lightGray, borderRadius: pw.BorderRadius.circular(4))),
+              pw.Container(height: 8, width: 460 * score.clamp(0.0, 1.0),
+                  decoration: pw.BoxDecoration(
+                      color: color, borderRadius: pw.BorderRadius.circular(4))),
+            ]),
+            pw.SizedBox(height: 8),
+          ]);
+
+      pw.Widget bullet(String text, PdfColor dotColor) => pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 5),
+        child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Container(width: 6, height: 6,
+              margin: const pw.EdgeInsets.only(top: 4, right: 8),
+              decoration: pw.BoxDecoration(color: dotColor, shape: pw.BoxShape.circle)),
+          pw.Expanded(child: pw.Text(text,
+              style: pw.TextStyle(fontSize: 10, color: darkColor))),
+        ]),
+      );
+
+      // ── Build PDF ────────────────────────────────────────────────────────
+      final pdf = pw.Document();
+      pdf.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(36),
+        header: (_) => pw.Container(
+          color: darkColor,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            pw.Text('EMPORA AI STRATEGY REPORT',
+                style: pw.TextStyle(fontSize: 13,
+                    fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+            pw.Text('STRATEGY ANALYSIS',
+                style: pw.TextStyle(fontSize: 11, color: goldColor)),
+          ]),
+        ),
+        footer: (ctx) => pw.Container(
+          padding: const pw.EdgeInsets.only(top: 8),
+          decoration: const pw.BoxDecoration(
+              border: pw.Border(top: pw.BorderSide(color: PdfColors.grey300, width: 0.5))),
+          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            pw.Text('Generated by Empora AI',
+                style: pw.TextStyle(fontSize: 8, color: grayColor)),
+            pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
+                style: pw.TextStyle(fontSize: 8, color: grayColor)),
+          ]),
+        ),
+        build: (_) => [
+          // Verdict banner
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+            margin: const pw.EdgeInsets.only(top: 12, bottom: 16),
+            decoration: pw.BoxDecoration(
+              color: r.overallScore >= 0.7
+                  ? PdfColor.fromHex('E8F5E9')
+                  : r.overallScore >= 0.45
+                      ? PdfColor.fromHex('FFF8E1')
+                      : PdfColor.fromHex('FFF3E0'),
+              borderRadius: pw.BorderRadius.circular(10),
+              border: pw.Border.all(color: verdictClr, width: 2),
+            ),
+            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+              pw.Text(r.verdict,
+                  style: pw.TextStyle(fontSize: 28,
+                      fontWeight: pw.FontWeight.bold, color: verdictClr)),
+              pw.SizedBox(height: 4),
+              pw.Text('${(r.overallScore * 100).toInt()}% Overall Strategy Score',
+                  style: pw.TextStyle(fontSize: 14,
+                      fontWeight: pw.FontWeight.bold, color: verdictClr)),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                  'Generated ${DateTime.now().toLocal().toString().substring(0, 16)}',
+                  style: pw.TextStyle(fontSize: 9, color: grayColor)),
             ]),
           ),
-          const Divider(height: 1),
-          Expanded(child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: SelectableText(content,
-                style: GoogleFonts.robotoMono(fontSize: 12, color: Colors.black87, height: 1.6)),
-          )),
+
+          // Summary
+          secTitle('EXECUTIVE SUMMARY', bg: blueColor),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+                color: lightGray, borderRadius: pw.BorderRadius.circular(6)),
+            child: pw.Text(r.summary,
+                style: pw.TextStyle(fontSize: 10, color: darkColor, lineSpacing: 4)),
+          ),
+
+          // Score breakdown
+          secTitle('SCORE BREAKDOWN', bg: tealColor),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+                color: lightGray, borderRadius: pw.BorderRadius.circular(6)),
+            child: pw.Column(children: [
+              scoreBar('Overall Strategy', r.overallScore,   darkColor),
+              scoreBar('Team',             r.teamScore,      blueColor),
+              scoreBar('Operations',       r.operationScore, tealColor),
+              scoreBar('Policy',           r.policyScore,    PdfColor.fromHex('2E7D32')),
+              scoreBar('Challenges',       r.challengeScore, accentClr),
+            ]),
+          ),
+
+          // Strengths
+          if (r.strengths.isNotEmpty) ...[
+            secTitle('STRENGTHS', bg: PdfColor.fromHex('1A7A4A')),
+            ...r.strengths.map((s) => bullet(s, successClr)),
+          ],
+
+          // Risks
+          if (r.risks.isNotEmpty) ...[
+            secTitle('KEY RISKS', bg: errorClr),
+            ...r.risks.map((s) => bullet(s, errorClr)),
+          ],
+
+          // Opportunities
+          if (r.opportunities.isNotEmpty) ...[
+            secTitle('OPPORTUNITIES', bg: goldColor),
+            ...r.opportunities.map((s) => bullet(s, goldColor)),
+          ],
+
+          // Recommendations
+          if (r.recommendations.isNotEmpty) ...[
+            secTitle('RECOMMENDATIONS', bg: blueColor),
+            ...r.recommendations.map((s) => bullet(s, blueColor)),
+          ],
+
+          // Final recommendation
+          secTitle('FINAL RECOMMENDATION', bg: darkColor),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+                color: PdfColor.fromHex('F0F9FF'),
+                borderRadius: pw.BorderRadius.circular(6),
+                border: pw.Border.all(color: PdfColor.fromHex('B2D8E8'), width: 1.5)),
+            child: pw.Text(r.finalRecommendation,
+                style: pw.TextStyle(fontSize: 10, color: darkColor, lineSpacing: 4)),
+          ),
+          pw.SizedBox(height: 16),
+          pw.Center(child: pw.Text('For informational purposes only.',
+              style: pw.TextStyle(fontSize: 8, color: grayColor))),
+        ],
+      ));
+
+      // ── Save / Download ──────────────────────────────────────────────────
+      final pdfBytes = await pdf.save();
+
+      if (kIsWeb) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('PDF ready! Web download requires a web-enabled build.',
+                style: GoogleFonts.inter(color: Colors.white)),
+            backgroundColor: AppTheme.warning, behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ));
+        }
+      } else {
+        File file;
+        if (Platform.isAndroid) {
+          const downloadsPath = '/storage/emulated/0/Download';
+          final dir = Directory(downloadsPath);
+          if (!await dir.exists()) await dir.create(recursive: true);
+          file = File('$downloadsPath/$fileName');
+        } else {
+          final dir = await getApplicationDocumentsDirectory();
+          file = File('${dir.path}/$fileName');
+        }
+        await file.writeAsBytes(pdfBytes);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Row(children: [
+          const Icon(Icons.picture_as_pdf, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Expanded(child: Text('PDF saved to Downloads: $fileName',
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
+              maxLines: 2, overflow: TextOverflow.ellipsis)),
         ]),
-      ),
-    );
+        backgroundColor: AppTheme.success, behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 4),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Download failed: $e',
+            style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: AppTheme.error, behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    }
   }
+
+
 
   Widget _card(Widget child) => Container(
     margin: const EdgeInsets.only(bottom: 14), padding: const EdgeInsets.all(18),
@@ -760,4 +1010,12 @@ class _StraticModInfo {
   final Color color;
   final IconData icon;
   const _StraticModInfo(this.key, this.label, this.color, this.icon);
+}
+
+class _AbstractItem {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String text;
+  const _AbstractItem({required this.icon, required this.color, required this.label, required this.text});
 }
