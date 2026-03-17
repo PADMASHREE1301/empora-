@@ -42,7 +42,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF004D40),
+        backgroundColor: const Color(0xFF1A1A2E),
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Row(children: [
@@ -83,7 +83,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppTheme.accentGold,
+          indicatorColor: const Color(0xFFE94560),
           indicatorWeight: 3,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
@@ -170,7 +170,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF004D40), Color(0xFF00796B)],
+                colors: [Color(0xFF1A1A2E), Color(0xFF0F3460)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(18),
@@ -389,7 +389,7 @@ class _UsersTabState extends State<_UsersTab> {
     return Column(children: [
       // Search + filter bar
       Container(
-        color: const Color(0xFF004D40),
+        color: const Color(0xFF1A1A2E),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
         child: Column(children: [
           TextField(
@@ -428,7 +428,7 @@ class _UsersTabState extends State<_UsersTab> {
                     ),
                     child: Text(f[0].toUpperCase() + f.substring(1),
                         style: GoogleFonts.inter(
-                            color: active ? const Color(0xFF004D40) : Colors.white70,
+                            color: active ? const Color(0xFF1A1A2E) : Colors.white70,
                             fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
@@ -612,11 +612,11 @@ class _SubmissionsTabState extends State<_SubmissionsTab>
     return Column(children: [
       // Sub-tabs
       Container(
-        color: const Color(0xFF004D40),
+        color: const Color(0xFF1A1A2E),
         child: TabBar(
           controller: _tabCtrl,
           isScrollable: true,
-          indicatorColor: AppTheme.accentGold,
+          indicatorColor: const Color(0xFFE94560),
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
           labelStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
