@@ -225,13 +225,13 @@ class _Header extends StatelessWidget {
   const _Header({required this.currentPage, required this.onSkip});
 
   static const _titles = [
-    'Tell us about yourself',
+    'Your location',
     'Your business',
     'Financial snapshot',
     'Your goals',
   ];
   static const _subtitles = [
-    'So we can personalize your experience',
+    'Tell us where you are located',
     'Help us understand your venture',
     'We\'ll tailor advice to your stage',
     'What do you want to achieve?',

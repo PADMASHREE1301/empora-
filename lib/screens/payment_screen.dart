@@ -11,13 +11,14 @@ import 'package:razorpay_flutter/razorpay_flutter.dart'
     if (dart.library.html) 'package:empora/services/razorpay_stub.dart';
 
 class PaymentScreen extends StatefulWidget {
-  const PaymentScreen({super.key});
+  final String initialPlan;
+  const PaymentScreen({super.key, this.initialPlan = 'monthly'});
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  String    _plan      = 'monthly';
+  late String _plan;
   int       _monthlyPrice = 999;
   int       _yearlyPrice  = 7999;
   bool      _loading   = false;
@@ -26,6 +27,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   void initState() {
     super.initState();
+    _plan = widget.initialPlan;
     _loadPricing();
     if (!kIsWeb) {
       _razorpay = Razorpay();
@@ -351,7 +353,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         const Icon(Icons.lock_open_rounded, size: 20),
                         const SizedBox(width: 8),
-                        Text('Pay ${_plan == 'monthly' ? '₹999' : '₹7,999'} & Unlock',
+                        Text('Pay ₹${_plan == 'monthly' ? _monthlyPrice : _yearlyPrice} & Unlock',
                             style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
                       ]),
               ),

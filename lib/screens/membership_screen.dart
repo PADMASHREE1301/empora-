@@ -125,7 +125,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const PaymentScreen()),
+                        MaterialPageRoute(builder: (_) => PaymentScreen(initialPlan: _plan)),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primary,
@@ -139,7 +139,7 @@ class _MembershipScreenState extends State<MembershipScreen> {
                           const Icon(Icons.lock_open_rounded, size: 20),
                           const SizedBox(width: 8),
                           Text(
-                            'Unlock with ${_plan == 'monthly' ? '₹999/mo' : '₹7,999/yr'}',
+                            'Unlock ${_plan == 'monthly' ? 'Monthly Plan' : 'Yearly Plan'}',
                             style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
                           ),
                         ],
