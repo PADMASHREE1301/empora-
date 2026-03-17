@@ -134,6 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'city':          city,
         'state':         stateVal,
         'phone':         _phone,
+        'isComplete':    true,
       });
       await authProvider.fetchProfile();
       if (!mounted) return;

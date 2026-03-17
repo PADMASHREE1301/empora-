@@ -48,6 +48,14 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery   = '';
   final  _searchCtrl    = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<AuthProvider>().fetchProfile();
+    });
+  }
+
   List<AppModule> get _filteredModules {
     if (_searchQuery.isEmpty) return ModuleData.modules;
     return ModuleData.modules
