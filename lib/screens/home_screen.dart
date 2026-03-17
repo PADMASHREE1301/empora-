@@ -1,13 +1,13 @@
 // lib/screens/home_screen.dart
-// ─────────────────────────────────────────────────────────────────────────────
-// WHAT CHANGED vs the old file:
-//   • _ProfileTab is now a StatefulWidget with full editable profile fields
-//   • "Complete Your Profile" section is shown INSIDE the Profile tab
-//   • Tapping any field opens a bottom-sheet editor (text or dropdown)
-//   • Changes auto-save via ApiService.saveFounderProfile()
-//   • Live completion ring + progress bar at top of profile
-//   • Everything else (Home, Modules, Alerts tabs, nav bar) is UNCHANGED
-// ─────────────────────────────────────────────────────────────────────────────
+// FIXES APPLIED:
+//   1. Home tab = rich dashboard (greeting, stats, recent activity, quick-access modules)
+//      Modules tab = full scrollable grid — they are NOW visually different
+//   2. App logo shows properly in Home header (E badge + EMPORA text)
+//   3. Auth flow is driven by main.dart / RootRouter — no change needed here
+//   4. Profile hero avatar is CENTERED
+//   5. "My Uploads" section added in Home tab showing user submissions
+//   6. Admin panel color changed to deep teal in admin_dashboard_screen.dart
+//   7. Alerts tab kept but only shown in bottom nav (no separate full-screen popup)
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -76,16 +76,9 @@ class _HomeScreenState extends State<HomeScreen> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          // ── Tab 0 : Home ──────────────────────────────────────────────────
-          _HomeTab(
-            filteredModules: _filteredModules,
-            searchController: _searchCtrl,
-            searchQuery: _searchQuery,
-            onSearchChanged: (v) => setState(() => _searchQuery = v),
-            onSearchClear: () {
-              _searchCtrl.clear();
-              setState(() => _searchQuery = '');
-            },
+          // ── Tab 0 : Home Dashboard ────────────────────────────────────────
+          _HomeDashboardTab(
+            onModuleTap: (index) => setState(() => _selectedIndex = 1),
           ),
           // ── Tab 1 : All Modules ───────────────────────────────────────────
           _ModulesTab(
@@ -96,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           // ── Tab 2 : Alerts ────────────────────────────────────────────────
           const _AlertsTab(),
-          // ── Tab 3 : Profile (NEW) ─────────────────────────────────────────
+          // ── Tab 3 : Profile ───────────────────────────────────────────────
           const _ProfileTab(),
         ],
       ),
@@ -155,22 +148,39 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 0 — HOME
+// TAB 0 — HOME DASHBOARD  (distinct from All Modules tab)
+// Shows: greeting, stats cards, My Uploads section, quick-access top 4 modules
 // ─────────────────────────────────────────────────────────────────────────────
-class _HomeTab extends StatelessWidget {
-  final List<AppModule>        filteredModules;
-  final TextEditingController  searchController;
-  final String                 searchQuery;
-  final ValueChanged<String>   onSearchChanged;
-  final VoidCallback           onSearchClear;
+class _HomeDashboardTab extends StatefulWidget {
+  final ValueChanged<int> onModuleTap;
+  const _HomeDashboardTab({required this.onModuleTap});
 
-  const _HomeTab({
-    required this.filteredModules,
-    required this.searchController,
-    required this.searchQuery,
-    required this.onSearchChanged,
-    required this.onSearchClear,
-  });
+  @override
+  State<_HomeDashboardTab> createState() => _HomeDashboardTabState();
+}
+
+class _HomeDashboardTabState extends State<_HomeDashboardTab> {
+  List<Map<String, dynamic>> _submissions = [];
+  bool _loadingSubmissions = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSubmissions();
+  }
+
+  Future<void> _loadSubmissions() async {
+    setState(() => _loadingSubmissions = true);
+    try {
+      final list = await ApiService.getMySubmissions();
+      setState(() {
+        _submissions = list;
+        _loadingSubmissions = false;
+      });
+    } catch (_) {
+      setState(() => _loadingSubmissions = false);
+    }
+  }
 
   String _greeting() {
     final h = DateTime.now().hour;
@@ -182,12 +192,13 @@ class _HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final top4 = ModuleData.modules.take(4).toList();
 
     return CustomScrollView(
       slivers: [
-        // ── App bar with gradient header ──────────────────────────────────
+        // ── Gradient header ────────────────────────────────────────────────
         SliverAppBar(
-          expandedHeight: 210,
+          expandedHeight: 200,
           floating: false,
           pinned: true,
           elevation: 0,
@@ -312,9 +323,7 @@ class _HomeTab extends StatelessWidget {
                             ]),
                           ],
                         ),
-
-                        const SizedBox(height: 16),
-
+                        const SizedBox(height: 20),
                         // Greeting
                         Text(
                           _greeting(),
@@ -324,8 +333,7 @@ class _HomeTab extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 4),
-
-                        // Name + badge
+                        // Name + badge row
                         Row(children: [
                           Expanded(
                             child: Text(
@@ -370,78 +378,49 @@ class _HomeTab extends StatelessWidget {
               ]),
             ),
           ),
-          // Search bar
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(64),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryDark.withValues(alpha: 0.2),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: TextField(
-                  controller: searchController,
-                  onChanged: onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: 'Search modules...',
-                    hintStyle: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 14),
-                    prefixIcon: const Icon(Icons.search, color: AppTheme.textSecondary, size: 20),
-                    suffixIcon: searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18, color: AppTheme.textSecondary),
-                            onPressed: onSearchClear,
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ),
-            ),
-          ),
         ),
 
-        // ── Stats row ─────────────────────────────────────────────────────
+        // ── Stats row ──────────────────────────────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
             child: Row(children: [
-              _StatChip(label: '${ModuleData.modules.length} Modules', icon: Icons.apps),
-              const SizedBox(width: 10),
-              _StatChip(label: 'Active', icon: Icons.circle, iconColor: AppTheme.success),
-              const Spacer(),
-              Text(
-                '${filteredModules.length} showing',
-                style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 12),
+              _StatCard(
+                icon: Icons.apps_rounded,
+                label: 'Modules',
+                value: '${ModuleData.modules.length}',
+                color: AppTheme.primary,
+              ),
+              const SizedBox(width: 12),
+              _StatCard(
+                icon: Icons.upload_file_rounded,
+                label: 'My Uploads',
+                value: '${_submissions.length}',
+                color: const Color(0xFF00897B),
+              ),
+              const SizedBox(width: 12),
+              _StatCard(
+                icon: auth.isMember ? Icons.workspace_premium : Icons.lock_outline,
+                label: auth.isMember ? 'Member' : 'Free Plan',
+                value: auth.isMember ? '✓' : 'Upgrade',
+                color: auth.isMember ? AppTheme.accentGold : AppTheme.accent,
               ),
             ]),
           ),
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-        // ── Complete Profile Banner (only if profile not done) ─────────────
+        // ── Complete Profile Banner (only if not done) ─────────────────────
         if (auth.user?.founderProfileComplete != true)
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const OnboardingScreen()),
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: AppTheme.primary,
                     borderRadius: BorderRadius.circular(14),
@@ -493,7 +472,7 @@ class _HomeTab extends StatelessWidget {
         if (!auth.isMember && !auth.isAdmin)
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
@@ -551,36 +530,49 @@ class _HomeTab extends StatelessWidget {
             ),
           ),
 
-        // ── Section header ─────────────────────────────────────────────────
+        // ── Quick Access Modules (only top 4) ─────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-            child: Row(children: [
-              Container(
-                width: 4, height: 20,
-                decoration: BoxDecoration(
-                  color: AppTheme.accent,
-                  borderRadius: BorderRadius.circular(2),
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(children: [
+                  Container(
+                    width: 4, height: 20,
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Quick Access',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ]),
+                GestureDetector(
+                  onTap: () => widget.onModuleTap(1),
+                  child: Text(
+                    'View All →',
+                    style: GoogleFonts.inter(
+                      fontSize: 13, color: AppTheme.primary, fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Business Modules',
-                style: GoogleFonts.montserrat(
-                  fontSize: 17, fontWeight: FontWeight.w700, color: AppTheme.textPrimary,
-                ),
-              ),
-            ]),
+              ],
+            ),
           ),
         ),
 
-        // ── Module grid ────────────────────────────────────────────────────
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           sliver: SliverGrid(
             delegate: SliverChildBuilderDelegate(
               (context, index) {
-                final module   = filteredModules[index];
+                final module   = top4[index];
                 final isLocked = !auth.isMember && !auth.isAdmin && module.id > 2;
                 return _ModuleCard(
                   module: module,
@@ -588,7 +580,7 @@ class _HomeTab extends StatelessWidget {
                   isLocked: isLocked,
                 );
               },
-              childCount: filteredModules.length,
+              childCount: top4.length,
             ),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
@@ -598,14 +590,220 @@ class _HomeTab extends StatelessWidget {
             ),
           ),
         ),
+
+        // ── My Uploads Section ────────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 28, 16, 10),
+            child: Row(children: [
+              Container(
+                width: 4, height: 20,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00897B),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'My Uploads',
+                style: GoogleFonts.montserrat(
+                  fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00897B).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${_submissions.length}',
+                  style: GoogleFonts.inter(
+                    fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF00897B),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+
+        SliverToBoxAdapter(
+          child: _loadingSubmissions
+              ? const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : _submissions.isEmpty
+                  ? _EmptyUploads()
+                  : _SubmissionsList(submissions: _submissions),
+        ),
+
         const SliverToBoxAdapter(child: SizedBox(height: 30)),
       ],
     );
   }
 }
 
+// ── Empty uploads placeholder ──────────────────────────────────────────────
+class _EmptyUploads extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Column(children: [
+          Icon(Icons.cloud_upload_outlined, size: 48,
+              color: AppTheme.textSecondary.withValues(alpha: 0.4)),
+          const SizedBox(height: 12),
+          Text(
+            'No uploads yet',
+            style: GoogleFonts.montserrat(
+              fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Files you submit through modules will appear here',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Submissions list ───────────────────────────────────────────────────────
+class _SubmissionsList extends StatelessWidget {
+  final List<Map<String, dynamic>> submissions;
+  const _SubmissionsList({required this.submissions});
+
+  Color _statusColor(String s) {
+    switch (s) {
+      case 'approved':  return Colors.green;
+      case 'rejected':  return Colors.red;
+      case 'completed': return Colors.blue;
+      default:          return Colors.orange;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: submissions.map((item) {
+          final status     = item['status'] as String? ?? 'pending';
+          final title      = item['title']  as String? ?? 'Untitled';
+          final moduleType = (item['moduleType'] as String? ?? '')
+              .replaceAll('_', ' ').toUpperCase();
+          final color = _statusColor(status);
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border(left: BorderSide(color: color, width: 4)),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
+              ],
+            ),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    moduleType,
+                    style: GoogleFonts.inter(fontSize: 11, color: AppTheme.textSecondary),
+                  ),
+                ]),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  status[0].toUpperCase() + status.substring(1),
+                  style: GoogleFonts.inter(
+                    fontSize: 11, fontWeight: FontWeight.w700, color: color,
+                  ),
+                ),
+              ),
+            ]),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// ── Stat Card widget ───────────────────────────────────────────────────────
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final String   value;
+  final Color    color;
+  const _StatCard({required this.icon, required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+          border: Border.all(color: color.withValues(alpha: 0.15)),
+        ),
+        child: Column(children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: GoogleFonts.montserrat(
+              fontSize: 18, fontWeight: FontWeight.w800, color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 10, color: AppTheme.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 1 — ALL MODULES
+// TAB 1 — ALL MODULES  (full grid — visually distinct from Home)
 // ─────────────────────────────────────────────────────────────────────────────
 class _ModulesTab extends StatelessWidget {
   final List<AppModule>       filteredModules;
@@ -625,16 +823,46 @@ class _ModulesTab extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     return SafeArea(
       child: Column(children: [
+        // ── Distinct header — teal strip with "All Modules" title ──────────
         Container(
-          color: AppTheme.primary,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF004D40), Color(0xFF00796B)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              'All Modules',
-              style: GoogleFonts.montserrat(
-                color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700,
+            Row(children: [
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.apps_rounded, color: Colors.white, size: 18),
               ),
-            ),
+              const SizedBox(width: 10),
+              Text(
+                'All Modules',
+                style: GoogleFonts.montserrat(
+                  color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${filteredModules.length} total',
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 11),
+                ),
+              ),
+            ]),
             const SizedBox(height: 12),
             Container(
               height: 44,
@@ -647,7 +875,7 @@ class _ModulesTab extends StatelessWidget {
                 onChanged: onSearchChanged,
                 style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Search...',
+                  hintText: 'Search modules...',
                   hintStyle: GoogleFonts.inter(color: Colors.white60, fontSize: 14),
                   prefixIcon: const Icon(Icons.search, color: Colors.white60, size: 20),
                   border: InputBorder.none,
@@ -659,26 +887,35 @@ class _ModulesTab extends StatelessWidget {
             ),
           ]),
         ),
+
+        // ── Module grid ───────────────────────────────────────────────────
         Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              childAspectRatio: 1.0,
-            ),
-            itemCount: filteredModules.length,
-            itemBuilder: (context, index) {
-              final module   = filteredModules[index];
-              final isLocked = !auth.isMember && !auth.isAdmin && module.id > 2;
-              return _ModuleCard(
-                module: module,
-                displayIndex: index + 1,
-                isLocked: isLocked,
-              );
-            },
-          ),
+          child: filteredModules.isEmpty
+              ? Center(
+                  child: Text(
+                    'No modules found',
+                    style: GoogleFonts.inter(color: AppTheme.textSecondary),
+                  ),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: 1.0,
+                  ),
+                  itemCount: filteredModules.length,
+                  itemBuilder: (context, index) {
+                    final module   = filteredModules[index];
+                    final isLocked = !auth.isMember && !auth.isAdmin && module.id > 2;
+                    return _ModuleCard(
+                      module: module,
+                      displayIndex: index + 1,
+                      isLocked: isLocked,
+                    );
+                  },
+                ),
         ),
       ]),
     );
@@ -698,13 +935,28 @@ class _AlertsTab extends StatelessWidget {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
-          color: AppTheme.primary,
-          child: Text(
-            'Alerts',
-            style: GoogleFonts.montserrat(
-              color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1A237E), Color(0xFF283593)],
             ),
           ),
+          child: Row(children: [
+            Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.notifications_rounded, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Alerts',
+              style: GoogleFonts.montserrat(
+                color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700,
+              ),
+            ),
+          ]),
         ),
         Expanded(
           child: Center(
@@ -735,10 +987,9 @@ class _AlertsTab extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 3 — PROFILE  ← THIS IS THE NEW ONE
+// TAB 3 — PROFILE  (FIX: avatar is now CENTERED)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Colour shortcuts used only inside this profile tab
 const _kNavy    = Color(0xFF0F2A5E);
 const _kNavyDk  = Color(0xFF0A1E46);
 const _kGold    = Color(0xFFF5A623);
@@ -757,7 +1008,6 @@ class _ProfileTab extends StatefulWidget {
 }
 
 class _ProfileTabState extends State<_ProfileTab> {
-  // ── Editable field values ─────────────────────────────────────────────────
   String _name     = '';
   String _email    = '';
   String _bizName  = '';
@@ -769,9 +1019,6 @@ class _ProfileTabState extends State<_ProfileTab> {
 
   bool _initialized = false;
 
-  // Seeds name/email from UserModel (always available on the model directly).
-  // Then calls ApiService.getFounderProfile() → GET /api/auth/founder-profile
-  // to load the nested business fields that are not stored on UserModel.
   void _initFromAuth(AuthProvider auth) {
     if (_initialized) return;
     _initialized = true;
@@ -782,15 +1029,9 @@ class _ProfileTabState extends State<_ProfileTab> {
 
   Future<void> _loadFounderFields() async {
     try {
-      // ApiService.getFounderProfile() → GET /api/auth/founder-profile
-      // Returns: { founderProfile: { businessName, industry, businessStage,
-      //   annualRevenue, city, state, phone, ... } }
       final res = await ApiService.getFounderProfile();
-
-      // The endpoint may wrap data under 'data', 'founderProfile', or return it flat
       final raw = res['data'] ?? res['founderProfile'] ?? res;
       final fp  = raw is Map<String, dynamic> ? raw : null;
-
       if (fp != null && mounted) {
         setState(() {
           _bizName  = fp['businessName']  as String? ?? '';
@@ -803,12 +1044,9 @@ class _ProfileTabState extends State<_ProfileTab> {
           _phone    = fp['phone'] as String? ?? '';
         });
       }
-    } catch (_) {
-      // silently ignore — fields stay empty, user can fill them in manually
-    }
+    } catch (_) {}
   }
 
-  // ── Completion % ──────────────────────────────────────────────────────────
   double get _pct {
     int n = 0;
     if (_bizName.isNotEmpty)  n++;
@@ -820,7 +1058,6 @@ class _ProfileTabState extends State<_ProfileTab> {
     return n / 6;
   }
 
-  // ── Save to backend ───────────────────────────────────────────────────────
   Future<void> _save() async {
     try {
       final parts    = _location.split(',');
@@ -847,9 +1084,6 @@ class _ProfileTabState extends State<_ProfileTab> {
     } catch (_) {}
   }
 
-  // ── Open bottom-sheet editor ──────────────────────────────────────────────
-  // Pass  options: null  →  free-text TextField
-  // Pass  options: [...]  →  scrollable list picker
   Future<void> _edit({
     required String        title,
     required String        current,
@@ -872,11 +1106,10 @@ class _ProfileTabState extends State<_ProfileTab> {
     );
     if (result != null && result.isNotEmpty) {
       onSave(result);
-      _save(); // auto-persist after every edit
+      _save();
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -889,13 +1122,13 @@ class _ProfileTabState extends State<_ProfileTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── 1. Hero banner ─────────────────────────────────────────
+              // ── 1. Hero banner (FIX: centered) ─────────────────────────
               _buildHero(auth),
 
-              // ── 2. Completion ring card ────────────────────────────────
+              // ── 2. Completion ring card ─────────────────────────────────
               _buildCompletionCard(),
 
-              // ── 3. Account section (name, email, type) ─────────────────
+              // ── 3. Account section ──────────────────────────────────────
               _buildSectionHeader('Account'),
               _buildCardGroup([
                 _FieldRow(
@@ -932,11 +1165,11 @@ class _ProfileTabState extends State<_ProfileTab> {
                   label: 'Account Type',
                   value: auth.isAdmin ? 'Administrator' : auth.isMember ? 'Member' : 'Free',
                   valueColor: (auth.isAdmin || auth.isMember) ? _kGold : _kSub,
-                  showEdit: false,  // account type is not manually editable
+                  showEdit: false,
                 ),
               ]),
 
-              // ── 4. Complete Your Profile section ───────────────────────
+              // ── 4. Complete Your Profile section ────────────────────────
               _buildSectionHeader(
                 'Complete Your Profile',
                 subtitle: '● required to unlock AI advice',
@@ -1045,7 +1278,7 @@ class _ProfileTabState extends State<_ProfileTab> {
                 ),
               ]),
 
-              // ── 5. Admin section (only for admins) ─────────────────────
+              // ── 5. Admin section ─────────────────────────────────────────
               if (auth.isAdmin) ...[
                 _buildSectionHeader('Admin'),
                 _buildCardGroup([
@@ -1065,7 +1298,7 @@ class _ProfileTabState extends State<_ProfileTab> {
                 ]),
               ],
 
-              // ── 6. Upgrade banner (free users only) ────────────────────
+              // ── 6. Upgrade banner ─────────────────────────────────────────
               if (!auth.isMember && !auth.isAdmin)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
@@ -1113,7 +1346,7 @@ class _ProfileTabState extends State<_ProfileTab> {
                   ),
                 ),
 
-              // ── 7. Logout button ───────────────────────────────────────
+              // ── 7. Logout button ──────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
                 child: SizedBox(
@@ -1153,7 +1386,7 @@ class _ProfileTabState extends State<_ProfileTab> {
     );
   }
 
-  // ── Hero widget ────────────────────────────────────────────────────────────
+  // ── Hero widget — FIX: everything is CENTERED ─────────────────────────────
   Widget _buildHero(AuthProvider auth) {
     final initial = _name.isNotEmpty ? _name[0].toUpperCase() : 'U';
     return Container(
@@ -1166,7 +1399,6 @@ class _ProfileTabState extends State<_ProfileTab> {
         ),
       ),
       child: Stack(children: [
-        // Decorative circle top-right
         Positioned(
           top: -50, right: -50,
           child: Container(
@@ -1177,7 +1409,6 @@ class _ProfileTabState extends State<_ProfileTab> {
             ),
           ),
         ),
-        // Decorative circle bottom-left
         Positioned(
           bottom: -30, left: -30,
           child: Container(
@@ -1190,102 +1421,110 @@ class _ProfileTabState extends State<_ProfileTab> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
-          child: Column(children: [
-            // Avatar with edit button
-            Stack(children: [
-              Container(
-                width: 84, height: 84,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 3),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _kNavyDk.withValues(alpha: 0.35),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    initial,
-                    style: GoogleFonts.montserrat(
-                      fontSize: 36, fontWeight: FontWeight.w800, color: _kNavy,
-                    ),
-                  ),
-                ),
-              ),
-              // Gold pencil edit button
-              Positioned(
-                right: 0, bottom: 0,
-                child: GestureDetector(
-                  onTap: () => _edit(
-                    title: 'Full Name',
-                    current: _name,
-                    hint: 'Enter your full name',
-                    onSave: (v) => setState(() => _name = v),
-                  ),
-                  child: Container(
-                    width: 28, height: 28,
+          // FIX: Use Column with CrossAxisAlignment.center to CENTER everything
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Avatar with edit button — centered
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 84, height: 84,
                     decoration: BoxDecoration(
-                      color: _kGold,
+                      color: Colors.white,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _kNavyDk.withValues(alpha: 0.35),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
-                    child: const Icon(Icons.edit, color: Colors.white, size: 13),
+                    child: Center(
+                      child: Text(
+                        initial,
+                        style: GoogleFonts.montserrat(
+                          fontSize: 36, fontWeight: FontWeight.w800, color: _kNavy,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 14),
-            // Name
-            Text(
-              _name.isEmpty ? 'Your Name' : _name,
-              style: GoogleFonts.montserrat(
-                color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 4),
-            // Email
-            Text(
-              _email,
-              style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
-            ),
-            const SizedBox(height: 14),
-            // Admin / Member / Free badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-              decoration: BoxDecoration(
-                color: (auth.isAdmin || auth.isMember)
-                    ? _kGold
-                    : Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(
-                  (auth.isAdmin || auth.isMember)
-                      ? Icons.workspace_premium
-                      : Icons.person_outline,
-                  color: Colors.white,
-                  size: 14,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  auth.isAdmin ? 'ADMIN ACCOUNT' : auth.isMember ? 'MEMBER' : 'FREE ACCOUNT',
-                  style: GoogleFonts.inter(
-                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700,
+                  // Gold pencil edit button
+                  Positioned(
+                    right: 0, bottom: 0,
+                    child: GestureDetector(
+                      onTap: () => _edit(
+                        title: 'Full Name',
+                        current: _name,
+                        hint: 'Enter your full name',
+                        onSave: (v) => setState(() => _name = v),
+                      ),
+                      child: Container(
+                        width: 28, height: 28,
+                        decoration: BoxDecoration(
+                          color: _kGold,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Icon(Icons.edit, color: Colors.white, size: 13),
+                      ),
+                    ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              // Name — centered
+              Text(
+                _name.isEmpty ? 'Your Name' : _name,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700,
                 ),
-              ]),
-            ),
-          ]),
+              ),
+              const SizedBox(height: 4),
+              // Email — centered
+              Text(
+                _email,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 14),
+              // Badge — centered
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                decoration: BoxDecoration(
+                  color: (auth.isAdmin || auth.isMember)
+                      ? _kGold
+                      : Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(
+                    (auth.isAdmin || auth.isMember)
+                        ? Icons.workspace_premium
+                        : Icons.person_outline,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    auth.isAdmin ? 'ADMIN ACCOUNT' : auth.isMember ? 'MEMBER' : 'FREE ACCOUNT',
+                    style: GoogleFonts.inter(
+                      color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ]),
+              ),
+            ],
+          ),
         ),
       ]),
     );
   }
 
-  // ── Completion ring card ───────────────────────────────────────────────────
   Widget _buildCompletionCard() {
     final pct      = _pct;
     final pctLabel = '${(pct * 100).round()}%';
@@ -1300,7 +1539,6 @@ class _ProfileTabState extends State<_ProfileTab> {
         ],
       ),
       child: Row(children: [
-        // Circular progress
         SizedBox(
           width: 50, height: 50,
           child: Stack(alignment: Alignment.center, children: [
@@ -1333,7 +1571,6 @@ class _ProfileTabState extends State<_ProfileTab> {
               style: GoogleFonts.inter(fontSize: 11, color: _kSub),
             ),
             const SizedBox(height: 7),
-            // Linear progress bar
             ClipRRect(
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
@@ -1349,20 +1586,15 @@ class _ProfileTabState extends State<_ProfileTab> {
     );
   }
 
-  // ── Section header ─────────────────────────────────────────────────────────
-  Widget _buildSectionHeader(
-    String title, {
-    String?  subtitle,
-    Color?   subtitleColor,
-  }) {
+  Widget _buildSectionHeader(String title, {String? subtitle, Color? subtitleColor}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Row(children: [
         Text(
-          title.toUpperCase(),
+          title,
           style: GoogleFonts.inter(
             fontSize: 11, fontWeight: FontWeight.w700,
-            color: _kSub, letterSpacing: 0.08,
+            color: _kSub, letterSpacing: 0.8,
           ),
         ),
         if (subtitle != null) ...[
@@ -1370,7 +1602,8 @@ class _ProfileTabState extends State<_ProfileTab> {
           Text(
             subtitle,
             style: GoogleFonts.inter(
-              fontSize: 10, color: subtitleColor ?? _kSub,
+              fontSize: 10, fontWeight: FontWeight.w500,
+              color: subtitleColor ?? _kSub,
             ),
           ),
         ],
@@ -1378,7 +1611,6 @@ class _ProfileTabState extends State<_ProfileTab> {
     );
   }
 
-  // ── Card group wrapper ─────────────────────────────────────────────────────
   Widget _buildCardGroup(List<Widget> rows) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1386,35 +1618,40 @@ class _ProfileTabState extends State<_ProfileTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
-        children: [
-          for (int i = 0; i < rows.length; i++) ...[
-            rows[i],
-            if (i < rows.length - 1)
-              const Divider(height: 1, indent: 16, endIndent: 16, color: _kBorder),
-          ],
-        ],
+        children: rows.asMap().entries.map((e) {
+          final isLast = e.key == rows.length - 1;
+          return Column(children: [
+            e.value,
+            if (!isLast)
+              Divider(height: 1, indent: 56, color: _kBorder),
+          ]);
+        }).toList(),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FIELD ROW — single row inside a card group
+// FIELD ROW  (reusable profile list tile)
 // ─────────────────────────────────────────────────────────────────────────────
 class _FieldRow extends StatelessWidget {
-  final IconData     icon;
-  final Color        iconBg;
-  final Color        iconColor;
-  final String       label;
-  final String       value;
-  final Color?       valueColor;
-  final bool         required;   // show red dot
-  final bool         showEdit;   // show pencil button
-  final bool         showArrow;  // show chevron (for nav rows)
+  final IconData   icon;
+  final Color      iconBg;
+  final Color      iconColor;
+  final String     label;
+  final String     value;
+  final Color?     valueColor;
+  final bool       required;
+  final bool       showEdit;
+  final bool       showArrow;
   final VoidCallback? onEdit;
   final VoidCallback? onTap;
 
@@ -1425,8 +1662,8 @@ class _FieldRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
-    this.required  = false,
-    this.showEdit  = true,
+    this.required = false,
+    this.showEdit = true,
     this.showArrow = false,
     this.onEdit,
     this.onTap,
@@ -1434,77 +1671,56 @@ class _FieldRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final empty = value.isEmpty;
-
-    return GestureDetector(
+    return InkWell(
       onTap: onTap ?? (showEdit ? onEdit : null),
+      borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         child: Row(children: [
-          // Coloured icon box
           Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 19),
+            width: 36, height: 36,
+            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: iconColor, size: 18),
           ),
-          const SizedBox(width: 14),
-
-          // Label + value
+          const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Text(
                   label,
-                  style: GoogleFonts.inter(
-                    fontSize: 11, color: _kSub, fontWeight: FontWeight.w500,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 11, color: _kSub, fontWeight: FontWeight.w500),
                 ),
-                if (required) ...[
-                  const SizedBox(width: 5),
-                  Container(
-                    width: 5, height: 5,
-                    decoration: const BoxDecoration(
-                      color: _kRed, shape: BoxShape.circle,
-                    ),
+                if (required)
+                  Text(
+                    ' ●',
+                    style: GoogleFonts.inter(fontSize: 9, color: _kRed),
                   ),
-                ],
               ]),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(
-                empty ? 'Tap to add' : value,
+                value.isEmpty ? 'Not set' : value,
                 style: GoogleFonts.inter(
                   fontSize: 14,
-                  fontWeight: empty ? FontWeight.w400 : FontWeight.w600,
-                  color: empty
-                      ? const Color(0xFFB0B8C8)
+                  fontWeight: FontWeight.w500,
+                  color: value.isEmpty
+                      ? _kSub.withValues(alpha: 0.5)
                       : (valueColor ?? const Color(0xFF1A1F36)),
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
             ]),
           ),
-
-          // Pencil edit button
           if (showEdit && onEdit != null)
-            GestureDetector(
-              onTap: onEdit,
-              child: Container(
-                width: 32, height: 32,
-                decoration: BoxDecoration(
-                  color: _kInputBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _kBorder),
-                ),
-                child: const Icon(Icons.edit_outlined, size: 15, color: _kSub),
+            Container(
+              width: 30, height: 30,
+              decoration: BoxDecoration(
+                color: _kInputBg,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _kBorder),
               ),
+              child: Icon(Icons.edit_outlined, size: 14, color: _kSub),
             ),
-
-          // Chevron for navigation rows (e.g. Admin Panel)
           if (showArrow)
-            const Icon(Icons.chevron_right, color: _kSub, size: 22),
+            Icon(Icons.chevron_right, color: _kSub, size: 20),
         ]),
       ),
     );
@@ -1515,10 +1731,10 @@ class _FieldRow extends StatelessWidget {
 // EDIT BOTTOM SHEET
 // ─────────────────────────────────────────────────────────────────────────────
 class _EditSheet extends StatefulWidget {
-  final String       title;
-  final String       current;
-  final List<String>? options;   // null = free-text, non-null = picker list
-  final String?      hint;
+  final String        title;
+  final String        current;
+  final List<String>? options;
+  final String?       hint;
   final TextInputType keyboard;
 
   const _EditSheet({
@@ -1535,15 +1751,11 @@ class _EditSheet extends StatefulWidget {
 
 class _EditSheetState extends State<_EditSheet> {
   late TextEditingController _ctrl;
-  String? _selected;
 
   @override
   void initState() {
     super.initState();
-    _ctrl     = TextEditingController(text: widget.current);
-    _selected = widget.options?.contains(widget.current) == true
-        ? widget.current
-        : null;
+    _ctrl = TextEditingController(text: widget.current);
   }
 
   @override
@@ -1552,195 +1764,104 @@ class _EditSheetState extends State<_EditSheet> {
     super.dispose();
   }
 
-  void _confirm() {
-    final val = widget.options != null
-        ? (_selected ?? '')
-        : _ctrl.text.trim();
-    if (val.isNotEmpty) Navigator.pop(context, val);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isDropdown = widget.options != null;
-
-    return Padding(
-      // push sheet up when keyboard opens
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Drag handle
+    final isOptions = widget.options != null;
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // Handle
             Container(
-              margin: const EdgeInsets.only(top: 12),
               width: 36, height: 4,
               decoration: BoxDecoration(
-                color: _kBorder, borderRadius: BorderRadius.circular(2),
+                color: _kBorder,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-
-            // Header row
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Row(children: [
-                Expanded(
-                  child: Text(
-                    'Edit ${widget.title}',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 16, fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1A1F36),
-                    ),
-                  ),
-                ),
-                // Close button
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    width: 32, height: 32,
-                    decoration: BoxDecoration(
-                      color: _kInputBg,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _kBorder),
-                    ),
-                    child: const Icon(Icons.close, size: 18, color: _kSub),
-                  ),
-                ),
-              ]),
+            const SizedBox(height: 16),
+            // Title
+            Text(
+              'Edit ${widget.title}',
+              style: GoogleFonts.montserrat(
+                fontSize: 16, fontWeight: FontWeight.w700, color: _kNavy,
+              ),
             ),
+            const SizedBox(height: 16),
 
-            const Divider(height: 24, indent: 20, endIndent: 20, color: _kBorder),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Field label
-                  Text(
-                    widget.title.toUpperCase(),
-                    style: GoogleFonts.inter(
-                      fontSize: 11, fontWeight: FontWeight.w600,
-                      color: _kSub, letterSpacing: 0.05,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // ── Dropdown list (for options) ───────────────────────
-                  if (isDropdown)
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 240),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: _kBorder),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: widget.options!.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1, color: _kBorder),
-                          itemBuilder: (_, i) {
-                            final opt = widget.options![i];
-                            final sel = _selected == opt;
-                            return GestureDetector(
-                              onTap: () => setState(() => _selected = opt),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 13,
-                                ),
-                                color: sel
-                                    ? _kNavy.withValues(alpha: 0.06)
-                                    : Colors.transparent,
-                                child: Row(children: [
-                                  Expanded(
-                                    child: Text(
-                                      opt,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 14,
-                                        fontWeight: sel
-                                            ? FontWeight.w600
-                                            : FontWeight.w400,
-                                        color: sel
-                                            ? _kNavy
-                                            : const Color(0xFF1A1F36),
-                                      ),
-                                    ),
-                                  ),
-                                  if (sel)
-                                    const Icon(Icons.check_circle,
-                                        color: _kNavy, size: 18),
-                                ]),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    )
-
-                  // ── Free-text input ───────────────────────────────────
-                  else
-                    TextField(
-                      controller: _ctrl,
-                      keyboardType: widget.keyboard,
-                      autofocus: true,
-                      style: GoogleFonts.inter(
-                        fontSize: 15, color: const Color(0xFF1A1F36),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: widget.hint ?? 'Enter value...',
-                        hintStyle: GoogleFonts.inter(color: _kSub),
-                        filled: true,
-                        fillColor: _kInputBg,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 14,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _kBorder),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _kBorder),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _kNavy, width: 1.5),
-                        ),
-                      ),
-                    ),
-
-                  const SizedBox(height: 20),
-
-                  // Save button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _confirm,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _kNavy,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'Save Changes',
+            if (isOptions)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: widget.options!.length,
+                  separatorBuilder: (_, __) => Divider(height: 1, color: _kBorder),
+                  itemBuilder: (_, i) {
+                    final opt = widget.options![i];
+                    final selected = opt == widget.current;
+                    return ListTile(
+                      title: Text(
+                        opt,
                         style: GoogleFonts.inter(
-                          fontSize: 15, fontWeight: FontWeight.w600,
+                          fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                          color: selected ? _kNavy : const Color(0xFF374151),
                         ),
                       ),
-                    ),
+                      trailing: selected
+                          ? const Icon(Icons.check_circle, color: _kGold)
+                          : null,
+                      onTap: () => Navigator.pop(context, opt),
+                    );
+                  },
+                ),
+              )
+            else ...[
+              Container(
+                decoration: BoxDecoration(
+                  color: _kInputBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _kBorder),
+                ),
+                child: TextField(
+                  controller: _ctrl,
+                  keyboardType: widget.keyboard,
+                  autofocus: true,
+                  style: GoogleFonts.inter(fontSize: 15, color: _kNavy),
+                  decoration: InputDecoration(
+                    hintText: widget.hint,
+                    hintStyle: GoogleFonts.inter(color: _kSub),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, _ctrl.text),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kNavy,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    'Save',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                ),
+              ),
+            ],
+          ]),
         ),
       ),
     );
@@ -1754,10 +1875,11 @@ class _ModuleCard extends StatefulWidget {
   final AppModule module;
   final int       displayIndex;
   final bool      isLocked;
+
   const _ModuleCard({
     required this.module,
     required this.displayIndex,
-    this.isLocked = false,
+    required this.isLocked,
   });
 
   @override
@@ -1773,10 +1895,10 @@ class _ModuleCardState extends State<_ModuleCard>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 120),
-      lowerBound: 0.95,
+      lowerBound: 0.94,
       upperBound: 1.0,
       value: 1.0,
+      duration: const Duration(milliseconds: 120),
     );
   }
 
@@ -1839,7 +1961,6 @@ class _ModuleCardState extends State<_ModuleCard>
             padding: const EdgeInsets.all(12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                // Icon with optional lock badge
                 Stack(children: [
                   Container(
                     width: 44, height: 44,
@@ -1868,7 +1989,6 @@ class _ModuleCardState extends State<_ModuleCard>
                       ),
                     ),
                 ]),
-                // Number badge
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
@@ -1886,7 +2006,6 @@ class _ModuleCardState extends State<_ModuleCard>
                 ),
               ]),
               const Spacer(),
-              // Title
               Text(
                 m.title,
                 style: GoogleFonts.montserrat(
@@ -1899,7 +2018,6 @@ class _ModuleCardState extends State<_ModuleCard>
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
-              // Subtitle
               Text(
                 m.subtitle,
                 style: GoogleFonts.inter(
@@ -1909,7 +2027,6 @@ class _ModuleCardState extends State<_ModuleCard>
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
-              // Arrow button
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 Container(
                   width: 26, height: 26,
@@ -1933,39 +2050,7 @@ class _ModuleCardState extends State<_ModuleCard>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STAT CHIP  (used in Home tab stats row)
-// ─────────────────────────────────────────────────────────────────────────────
-class _StatChip extends StatelessWidget {
-  final String   label;
-  final IconData icon;
-  final Color?   iconColor;
-  const _StatChip({required this.label, required this.icon, this.iconColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.divider),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: iconColor ?? AppTheme.primaryLight),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.textPrimary,
-          ),
-        ),
-      ]),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// NAV ITEM  (bottom navigation bar pill)
+// NAV ITEM
 // ─────────────────────────────────────────────────────────────────────────────
 class _NavItem extends StatelessWidget {
   final IconData     icon;

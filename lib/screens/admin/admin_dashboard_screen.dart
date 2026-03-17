@@ -42,7 +42,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryDark,
+        backgroundColor: const Color(0xFF004D40),
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Row(children: [
@@ -170,7 +170,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppTheme.primaryDark, AppTheme.primary],
+                colors: [Color(0xFF004D40), Color(0xFF00796B)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(18),
@@ -389,7 +389,7 @@ class _UsersTabState extends State<_UsersTab> {
     return Column(children: [
       // Search + filter bar
       Container(
-        color: AppTheme.primaryDark,
+        color: const Color(0xFF004D40),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
         child: Column(children: [
           TextField(
@@ -428,7 +428,7 @@ class _UsersTabState extends State<_UsersTab> {
                     ),
                     child: Text(f[0].toUpperCase() + f.substring(1),
                         style: GoogleFonts.inter(
-                            color: active ? AppTheme.primary : Colors.white70,
+                            color: active ? const Color(0xFF004D40) : Colors.white70,
                             fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
@@ -612,7 +612,7 @@ class _SubmissionsTabState extends State<_SubmissionsTab>
     return Column(children: [
       // Sub-tabs
       Container(
-        color: AppTheme.primaryDark,
+        color: const Color(0xFF004D40),
         child: TabBar(
           controller: _tabCtrl,
           isScrollable: true,

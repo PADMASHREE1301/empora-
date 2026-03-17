@@ -338,13 +338,41 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
 
   static Future<Map<String, dynamic>> getModuleData({
     required String module,
-    required String recordId,
+    required String? recordId,
   }) async {
+    final url = recordId != null
+        ? '$_baseUrl/$module/$recordId/data'
+        : '$_baseUrl/$module/my';
     final res = await http.get(
-      Uri.parse('$_baseUrl/$module/$recordId/data'),
+      Uri.parse(url),
       headers: await _headers(),
     );
-    return _decode(res)['data'] as Map<String, dynamic>;
+    final body = _decode(res);
+    // If recordId is null we called /my which returns a list under 'data'
+    if (recordId == null) {
+      final list = body['data'] ?? body['submissions'] ?? body;
+      if (list is List) return {'submissions': list, 'total': list.length};
+      return body; // _decode already returns Map<String, dynamic> — no cast needed
+    }
+    final data = body['data'];
+    if (data is Map<String, dynamic>) return data;
+    return body;
+  }
+
+  // Fetch the current user's submissions list (used in Home tab "My Uploads")
+  static Future<List<Map<String, dynamic>>> getMySubmissions() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/submissions/my'),
+        headers: await _headers(),
+      );
+      final body = _decode(res);
+      final list = body['submissions'] ?? body['data'] ?? body['records'] ?? [];
+      if (list is List) return list.cast<Map<String, dynamic>>();
+      return [];
+    } catch (_) {
+      return [];
+    }
   }
 
   static Future<List<dynamic>> getMyModuleRecords({
