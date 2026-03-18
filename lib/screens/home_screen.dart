@@ -124,28 +124,75 @@ class _EmporaLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: size, height: size,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF5A623), Color(0xFFFF8C00)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(size * 0.22),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFFF5A623).withValues(alpha: 0.5), blurRadius: 8, offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Center(
-        child: Text('E',
-          style: GoogleFonts.montserrat(
-            fontSize: size * 0.58, fontWeight: FontWeight.w900,
-            color: Colors.white, height: 1,
-          )),
-      ),
+      child: CustomPaint(painter: _CrownLogoPainter(size: size)),
     );
   }
+}
+
+class _CrownLogoPainter extends CustomPainter {
+  final double size;
+  const _CrownLogoPainter({required this.size});
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final r = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size, size),
+      Radius.circular(size * 0.22),
+    );
+    // Background
+    canvas.drawRRect(r, Paint()..color = const Color(0xFF0D0D1A));
+
+    final gold  = const Color(0xFFF5A623);
+    final white = Colors.white;
+
+    // Crown shape
+    final crownH = size * 0.40;
+    final top    = size * 0.18;
+    final left   = size * 0.18;
+    final right  = size * 0.82;
+    final bottom = top + crownH;
+    final midX   = size * 0.50;
+
+    final crown = Path()
+      ..moveTo(left,  bottom)
+      ..lineTo(left,  top + crownH * 0.40)
+      ..lineTo(left + (midX - left) * 0.5, top + crownH * 0.70)
+      ..lineTo(midX,  top)
+      ..lineTo(right - (right - midX) * 0.5, top + crownH * 0.70)
+      ..lineTo(right, top + crownH * 0.40)
+      ..lineTo(right, bottom)
+      ..close();
+    canvas.drawPath(crown, Paint()..color = gold);
+
+    // Base bar
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(left - 1, bottom, (right - left) + 2, size * 0.09),
+        const Radius.circular(3),
+      ),
+      Paint()..color = gold,
+    );
+
+    // E letter on crown
+    final tp = TextPainter(
+      text: TextSpan(
+        text: 'E',
+        style: TextStyle(
+          fontSize: size * 0.28,
+          fontWeight: FontWeight.w900,
+          color: const Color(0xFF0D0D1A),
+          height: 1,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(midX - tp.width / 2, top + crownH * 0.18));
+  }
+
+  @override
+  bool shouldRepaint(_CrownLogoPainter old) => old.size != size;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -870,7 +917,7 @@ class _ProfileTabState extends State<_ProfileTab> {
         child: SingleChildScrollView(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _buildHero(auth),
-            _buildCompletionCard(),
+            if (!auth.isAdmin) _buildCompletionCard(),
             _buildSectionHeader('Account'),
             _buildCardGroup([
               _FieldRow(icon: Icons.person_outline, iconBg: const Color(0xFFEEF2FF), iconColor: const Color(0xFF4F6EF7),
@@ -883,8 +930,8 @@ class _ProfileTabState extends State<_ProfileTab> {
                 label: 'Account Type', value: auth.isAdmin ? 'Administrator' : auth.isMember ? 'Member' : 'Free',
                 valueColor: (auth.isAdmin || auth.isMember) ? kGold : kSub, showEdit: false),
             ]),
-            _buildSectionHeader('Complete Your Profile', subtitle: '● required to unlock AI advice', subtitleColor: kRed),
-            _buildCardGroup([
+            if (!auth.isAdmin) _buildSectionHeader('Complete Your Profile', subtitle: '● required to unlock AI advice', subtitleColor: kRed),
+            if (!auth.isAdmin) _buildCardGroup([
               _FieldRow(icon: Icons.home_work_outlined, iconBg: const Color(0xFFEEFAF3), iconColor: kGreen,
                 label: 'Business Name', value: _bizName, required: true,
                 onEdit: () => _edit(title: 'Business Name', current: _bizName, hint: 'e.g. Acme Corp', onSave: (v) => setState(() => _bizName = v))),
