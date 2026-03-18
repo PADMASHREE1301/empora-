@@ -127,15 +127,21 @@ class _EmporaLogo extends StatelessWidget {
     return Container(
       width: size, height: size,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(size * 0.25),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 6, offset: const Offset(0, 2))],
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF5A623), Color(0xFFFF8C00)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(size * 0.22),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFFF5A623).withValues(alpha: 0.5), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
       ),
       child: Center(
         child: Text('E',
           style: GoogleFonts.montserrat(
-            fontSize: size * 0.55, fontWeight: FontWeight.w900,
-            color: const Color(0xFF1A3A7C), height: 1,
+            fontSize: size * 0.58, fontWeight: FontWeight.w900,
+            color: Colors.white, height: 1,
           )),
       ),
     );
@@ -576,7 +582,7 @@ class _ModulesTab extends StatelessWidget {
       child: Column(children: [
         Container(
           decoration: const BoxDecoration(
-            gradient: LinearGradient(colors: [Color(0xFF004D40), Color(0xFF00796B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            gradient: LinearGradient(colors: [Color(0xFF0D1B4B), Color(0xFF1A3A7C)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           ),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
