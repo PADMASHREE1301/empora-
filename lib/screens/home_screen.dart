@@ -137,58 +137,65 @@ class _CrownLogoPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size s) {
-    final r = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, size, size),
-      Radius.circular(size * 0.22),
-    );
     // Background
-    canvas.drawRRect(r, Paint()..color = const Color(0xFF0D0D1A));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size, size), Radius.circular(size * 0.22)),
+      Paint()..color = const Color(0xFF0D0D1A),
+    );
 
-    final gold  = const Color(0xFFF5A623);
-    final white = Colors.white;
+    final gold = const Color(0xFFF5A623);
+    final dark = const Color(0xFF0D0D1A);
+    final paint = Paint()..color = gold;
 
-    // Crown shape
-    final crownH = size * 0.40;
-    final top    = size * 0.18;
-    final left   = size * 0.18;
-    final right  = size * 0.82;
-    final bottom = top + crownH;
+    final padX   = size * 0.16;
+    final cw     = size - padX * 2;   // crown width
+    final baseY  = size * 0.62;
+    final topY   = size * 0.20;
     final midX   = size * 0.50;
+    final baseH  = size * 0.10;
 
+    // Crown polygon — 5-point classic crown
     final crown = Path()
-      ..moveTo(left,  bottom)
-      ..lineTo(left,  top + crownH * 0.40)
-      ..lineTo(left + (midX - left) * 0.5, top + crownH * 0.70)
-      ..lineTo(midX,  top)
-      ..lineTo(right - (right - midX) * 0.5, top + crownH * 0.70)
-      ..lineTo(right, top + crownH * 0.40)
-      ..lineTo(right, bottom)
+      ..moveTo(padX,          baseY)
+      ..lineTo(padX,          topY + cw * 0.35)
+      ..lineTo(padX + cw * 0.22, topY + cw * 0.65 * 0.55)
+      ..lineTo(padX + cw * 0.35, topY + cw * 0.15 * 0.55)
+      ..lineTo(midX,          topY)
+      ..lineTo(padX + cw * 0.65, topY + cw * 0.15 * 0.55)
+      ..lineTo(padX + cw * 0.78, topY + cw * 0.65 * 0.55)
+      ..lineTo(padX + cw,    topY + cw * 0.35)
+      ..lineTo(padX + cw,    baseY)
       ..close();
-    canvas.drawPath(crown, Paint()..color = gold);
+    canvas.drawPath(crown, paint);
 
     // Base bar
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(left - 1, bottom, (right - left) + 2, size * 0.09),
-        const Radius.circular(3),
+        Rect.fromLTWH(padX - 1, baseY, cw + 2, baseH),
+        Radius.circular(size * 0.04),
       ),
-      Paint()..color = gold,
+      paint,
     );
 
-    // E letter on crown
-    final tp = TextPainter(
-      text: TextSpan(
-        text: 'E',
-        style: TextStyle(
-          fontSize: size * 0.28,
-          fontWeight: FontWeight.w900,
-          color: const Color(0xFF0D0D1A),
-          height: 1,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(midX - tp.width / 2, top + crownH * 0.18));
+    // E letter — geometric bars drawn manually (no TextPainter font issues)
+    final eX   = midX - cw * 0.21;
+    final eCy  = size * 0.44;
+    final bH   = size * 0.065;   // bar height
+    final bW   = cw * 0.42;      // full bar width
+    final bWm  = cw * 0.30;      // mid bar width
+    final vH   = bH * 3 + size * 0.04; // total vertical height
+    final eTop = eCy - vH / 2;
+    final r2   = Radius.circular(2);
+    final ep   = Paint()..color = dark;
+
+    // Vertical bar
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(eX, eTop, bH, vH), r2), ep);
+    // Top bar
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(eX, eTop, bW, bH), r2), ep);
+    // Middle bar
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(eX, eCy - bH / 2, bWm, bH), r2), ep);
+    // Bottom bar
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(eX, eTop + vH - bH, bW, bH), r2), ep);
   }
 
   @override
@@ -463,8 +470,8 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab>
           ),
         ),
 
-        // ── PROFILE COMPLETE BANNER ────────────────────────────────────────
-        if (auth.user?.founderProfileComplete != true)
+        // ── PROFILE COMPLETE BANNER (hidden for admin) ───────────────────
+        if (!auth.isAdmin && auth.user?.founderProfileComplete != true)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -730,7 +737,7 @@ class _MyUploadsTabState extends State<_MyUploadsTab> {
         Container(
           width: double.infinity, padding: const EdgeInsets.all(20),
           decoration: const BoxDecoration(
-            gradient: LinearGradient(colors: [Color(0xFF004D40), Color(0xFF00796B)])),
+            gradient: const LinearGradient(colors: [Color(0xFF0D1B4B), Color(0xFF1A3A7C)])),
           child: Row(children: [
             Container(width: 32, height: 32,
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),

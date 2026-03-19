@@ -170,7 +170,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [const Color(0xFF0D0D1A), Color(0xFF0F3460)],
+                colors: [Color(0xFF0D0D1A), Color(0xFF1A1A2E)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(18),
@@ -421,7 +421,7 @@ class _UsersTabState extends State<_UsersTab> {
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
-                      color: active ? Colors.white : Colors.transparent,
+                      color: active ? const Color(0xFF1A3A7C) : Colors.transparent,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                           color: active ? Colors.white : Colors.white38),
@@ -1135,7 +1135,7 @@ class _PricingTabState extends State<_PricingTab> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [AppTheme.primaryDark, AppTheme.primary],
+              colors: [Color(0xFF0D0D1A), Color(0xFF1A1A2E)],
               begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(18),
@@ -1237,7 +1237,7 @@ class _PricingTabState extends State<_PricingTab> {
             label: Text(_saving ? 'Saving...' : 'Save Pricing',
                 style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
+              backgroundColor: const Color(0xFF0D0D1A),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
