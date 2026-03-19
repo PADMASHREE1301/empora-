@@ -124,83 +124,26 @@ class _EmporaLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: size, height: size,
-      child: CustomPaint(painter: _CrownLogoPainter(size: size)),
-    );
-  }
-}
-
-class _CrownLogoPainter extends CustomPainter {
-  final double size;
-  const _CrownLogoPainter({required this.size});
-
-  @override
-  void paint(Canvas canvas, Size s) {
-    // Background
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size, size), Radius.circular(size * 0.22)),
-      Paint()..color = const Color(0xFF0D0D1A),
-    );
-
-    final gold = const Color(0xFFF5A623);
-    final dark = const Color(0xFF0D0D1A);
-    final paint = Paint()..color = gold;
-
-    final padX   = size * 0.16;
-    final cw     = size - padX * 2;   // crown width
-    final baseY  = size * 0.62;
-    final topY   = size * 0.20;
-    final midX   = size * 0.50;
-    final baseH  = size * 0.10;
-
-    // Crown polygon — 5-point classic crown
-    final crown = Path()
-      ..moveTo(padX,          baseY)
-      ..lineTo(padX,          topY + cw * 0.35)
-      ..lineTo(padX + cw * 0.22, topY + cw * 0.65 * 0.55)
-      ..lineTo(padX + cw * 0.35, topY + cw * 0.15 * 0.55)
-      ..lineTo(midX,          topY)
-      ..lineTo(padX + cw * 0.65, topY + cw * 0.15 * 0.55)
-      ..lineTo(padX + cw * 0.78, topY + cw * 0.65 * 0.55)
-      ..lineTo(padX + cw,    topY + cw * 0.35)
-      ..lineTo(padX + cw,    baseY)
-      ..close();
-    canvas.drawPath(crown, paint);
-
-    // Base bar
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(padX - 1, baseY, cw + 2, baseH),
-        Radius.circular(size * 0.04),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(size * 0.24),
       ),
-      paint,
+      child: Center(
+        child: Text('E',
+          style: GoogleFonts.montserrat(
+            fontSize: size * 0.58,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF1A3A7C),
+            height: 1,
+          )),
+      ),
     );
-
-    // E letter — geometric bars drawn manually (no TextPainter font issues)
-    final eX   = midX - cw * 0.21;
-    final eCy  = size * 0.44;
-    final bH   = size * 0.065;   // bar height
-    final bW   = cw * 0.42;      // full bar width
-    final bWm  = cw * 0.30;      // mid bar width
-    final vH   = bH * 3 + size * 0.04; // total vertical height
-    final eTop = eCy - vH / 2;
-    final r2   = Radius.circular(2);
-    final ep   = Paint()..color = dark;
-
-    // Vertical bar
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(eX, eTop, bH, vH), r2), ep);
-    // Top bar
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(eX, eTop, bW, bH), r2), ep);
-    // Middle bar
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(eX, eCy - bH / 2, bWm, bH), r2), ep);
-    // Bottom bar
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(eX, eTop + vH - bH, bW, bH), r2), ep);
   }
-
-  @override
-  bool shouldRepaint(_CrownLogoPainter old) => old.size != size;
 }
+
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HEALTH RING PAINTER
@@ -404,13 +347,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab>
                       ]),
                     ),
 
-                    const SizedBox(width: 16),
 
-                    // RIGHT: health ring
-                    AnimatedBuilder(
-                      animation: _ringAnim,
-                      builder: (_, __) => _HealthRing(progress: _ringAnim.value * _calcHealth(auth), size: 86),
-                    ),
                   ],
                 ),
               ),

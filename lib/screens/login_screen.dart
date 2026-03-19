@@ -96,17 +96,22 @@ class _LoginScreenState extends State<LoginScreen>
       _passwordCtrl.text,
     );
     if (success && mounted) {
-      if (_isAdminMode && !auth.isAdmin) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Access denied. Not an admin account.'),
-            backgroundColor: AppTheme.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-        await auth.logout();
-        return;
+      if (_isAdminMode) {
+        // Wait for auth state to fully update
+        await Future.delayed(const Duration(milliseconds: 400));
+        if (!mounted) return;
+        if (!auth.isAdmin) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Access denied. Not an admin account.'),
+              backgroundColor: AppTheme.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+          await auth.logout();
+          return;
+        }
       }
       _navigateAfterLogin();
     }
