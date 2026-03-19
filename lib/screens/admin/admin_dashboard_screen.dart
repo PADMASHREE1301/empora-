@@ -40,9 +40,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.surface,
+      backgroundColor: const Color(0xFF0F0F18),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0D0D1A),
+        backgroundColor: const Color(0xFF0A0A0F),
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Row(children: [
@@ -55,7 +55,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             child: Center(
               child: Text('E',
                   style: GoogleFonts.montserrat(
-                      color: AppTheme.primary,
+                      color: const Color(0xFF0A0A0F),
                       fontWeight: FontWeight.w900,
                       fontSize: 18)),
             ),
@@ -170,7 +170,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [const Color(0xFF0D0D1A), Color(0xFF0F3460)],
+                colors: [const Color(0xFF0A0A0F), Color(0xFF0F3460)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(18),
@@ -236,7 +236,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           Row(children: [
             Expanded(child: _StatCard(
                 label: 'Total', value: '$totalSubs',
-                icon: Icons.inbox_outlined, color: AppTheme.primary)),
+                icon: Icons.inbox_outlined, color: const Color(0xFF1A3A7C))),
             const SizedBox(width: 12),
             Expanded(child: _StatCard(
                 label: 'Pending', value: '$pending',
@@ -348,7 +348,7 @@ class _UsersTabState extends State<_UsersTab> {
             style: GoogleFonts.montserrat(fontWeight: FontWeight.w700)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(u['email'] ?? '',
-              style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 13)),
+              style: GoogleFonts.inter(color: Colors.white60, fontSize: 13)),
           const SizedBox(height: 16),
           for (final role in ['free', 'membership', 'admin'])
             ListTile(
@@ -389,7 +389,7 @@ class _UsersTabState extends State<_UsersTab> {
     return Column(children: [
       // Search + filter bar
       Container(
-        color: const Color(0xFF0D0D1A),
+        color: const Color(0xFF0A0A0F),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
         child: Column(children: [
           TextField(
@@ -428,7 +428,7 @@ class _UsersTabState extends State<_UsersTab> {
                     ),
                     child: Text(f[0].toUpperCase() + f.substring(1),
                         style: GoogleFonts.inter(
-                            color: active ? const Color(0xFF0D0D1A) : Colors.white70,
+                            color: active ? const Color(0xFF0A0A0F) : Colors.white70,
                             fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
@@ -445,7 +445,7 @@ class _UsersTabState extends State<_UsersTab> {
         child: Row(children: [
           Text('$_total users',
               style: GoogleFonts.inter(
-                  color: AppTheme.textSecondary, fontSize: 12)),
+                  color: Colors.white60, fontSize: 12)),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.refresh, size: 18, color: AppTheme.textSecondary),
@@ -612,7 +612,7 @@ class _SubmissionsTabState extends State<_SubmissionsTab>
     return Column(children: [
       // Sub-tabs
       Container(
-        color: const Color(0xFF0D0D1A),
+        color: const Color(0xFF0A0A0F),
         child: TabBar(
           controller: _tabCtrl,
           isScrollable: true,
@@ -631,7 +631,7 @@ class _SubmissionsTabState extends State<_SubmissionsTab>
         child: Row(children: [
           Text('$_total submission${_total != 1 ? 's' : ''}',
               style: GoogleFonts.inter(
-                  color: AppTheme.textSecondary, fontSize: 12)),
+                  color: Colors.white60, fontSize: 12)),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.refresh, size: 18, color: AppTheme.textSecondary),
@@ -718,9 +718,9 @@ class _UserCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: Colors.white12),
         boxShadow: [BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8, offset: const Offset(0, 2))],
@@ -885,12 +885,12 @@ class _SubmissionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.08),
+                color: const Color(0xFF1A3A7C).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(moduleType,
                   style: GoogleFonts.inter(
-                      color: AppTheme.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+                      color: const Color(0xFF0A0A0F), fontSize: 10, fontWeight: FontWeight.w700)),
             ),
           const SizedBox(height: 10),
           Row(children: [
@@ -944,7 +944,7 @@ class _SubmissionCard extends StatelessWidget {
 
           if (status == 'pending') ...[
             const SizedBox(height: 12),
-            const Divider(height: 1, color: AppTheme.divider),
+            const Divider(height: 1, color: Colors.white12),
             const SizedBox(height: 12),
             Row(children: [
               Expanded(child: OutlinedButton.icon(
@@ -986,9 +986,9 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: const Color(0xFF1A1A2E),
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppTheme.divider),
+      border: Border.all(color: Colors.white12),
       boxShadow: [BoxShadow(
           color: Colors.black.withValues(alpha: 0.03),
           blurRadius: 6, offset: const Offset(0, 2))],
@@ -1041,13 +1041,13 @@ class _ErrorView extends StatelessWidget {
       const Icon(Icons.error_outline, size: 52, color: AppTheme.error),
       const SizedBox(height: 12),
       Text('Failed to load',
-          style: GoogleFonts.inter(color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
+          style: GoogleFonts.inter(color: Colors.white60, fontWeight: FontWeight.w600)),
       const SizedBox(height: 4),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Text(message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 11)),
+            style: GoogleFonts.inter(color: Colors.white60, fontSize: 11)),
       ),
       const SizedBox(height: 16),
       ElevatedButton.icon(
@@ -1055,7 +1055,7 @@ class _ErrorView extends StatelessWidget {
         icon: const Icon(Icons.refresh, size: 16),
         label: Text('Retry', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
         style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+            backgroundColor: const Color(0xFF0A0A0F), foregroundColor: Colors.white),
       ),
     ]),
   );
@@ -1135,7 +1135,7 @@ class _PricingTabState extends State<_PricingTab> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF0D0D1A), Color(0xFF1A1A2E)],
+              colors: [const Color(0xFF0A0A0F), const Color(0xFF1A3A7C)],
               begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(18),
@@ -1237,7 +1237,7 @@ class _PricingTabState extends State<_PricingTab> {
             label: Text(_saving ? 'Saving...' : 'Save Pricing',
                 style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
+              backgroundColor: const Color(0xFF0A0A0F),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -1273,9 +1273,9 @@ class _PriceFieldState extends State<_PriceField> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: Colors.white12),
         boxShadow: [BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 6, offset: const Offset(0, 2))],
@@ -1339,11 +1339,11 @@ class _PricePreviewState extends State<_PricePreview> {
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: Colors.white12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('User Preview', style: GoogleFonts.inter(
-            color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+            color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
         Row(children: [
           Expanded(child: _PreviewCard(
@@ -1376,7 +1376,7 @@ class _PreviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
@@ -1392,12 +1392,12 @@ class _PreviewCard extends StatelessWidget {
                     color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
           ),
         Text(label, style: GoogleFonts.inter(
-            color: AppTheme.textSecondary, fontSize: 12)),
+            color: Colors.white60, fontSize: 12)),
         const SizedBox(height: 4),
         Text('₹$price', style: GoogleFonts.montserrat(
             color: color, fontSize: 20, fontWeight: FontWeight.w800)),
         Text(sub, style: GoogleFonts.inter(
-            color: AppTheme.textSecondary, fontSize: 11)),
+            color: Colors.white60, fontSize: 11)),
       ]),
     );
   }

@@ -72,7 +72,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.surface,
+      backgroundColor: context.watch<AuthProvider>().isAdmin
+          ? const Color(0xFF0F0F18)
+          : AppTheme.surface,
       body: IndexedStack(
         index: _selectedIndex,
         children: [
@@ -133,10 +135,8 @@ class _EmporaLogo extends StatelessWidget {
       child: Center(
         child: Text('E',
           style: GoogleFonts.montserrat(
-            fontSize: size * 0.58,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF1A3A7C),
-            height: 1,
+            fontSize: size * 0.58, fontWeight: FontWeight.w800,
+            color: const Color(0xFF1A3A7C), height: 1,
           )),
       ),
     );
@@ -145,69 +145,7 @@ class _EmporaLogo extends StatelessWidget {
 
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HEALTH RING PAINTER
-// ─────────────────────────────────────────────────────────────────────────────
-class _RingPainter extends CustomPainter {
-  final double progress;
-  final Color  color;
-  final Color  trackColor;
-  const _RingPainter({required this.progress, required this.color, required this.trackColor});
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx   = size.width / 2;
-    final cy   = size.height / 2;
-    final r    = (size.width - 10) / 2;
-    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
-    final track = Paint()..color = trackColor ..strokeWidth = 7 ..style = PaintingStyle.stroke ..strokeCap = StrokeCap.round;
-    final arc   = Paint()..color = color ..strokeWidth = 7 ..style = PaintingStyle.stroke ..strokeCap = StrokeCap.round;
-    canvas.drawArc(rect, -math.pi / 2, 2 * math.pi, false, track);
-    canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * progress.clamp(0, 1), false, arc);
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter old) => old.progress != progress;
-}
-
-class _HealthRing extends StatelessWidget {
-  final double progress;
-  final double size;
-  const _HealthRing({required this.progress, required this.size});
-
-  Color get _color {
-    if (progress >= 0.75) return const Color(0xFF26C6DA);
-    if (progress >= 0.45) return const Color(0xFFFFB300);
-    return const Color(0xFFEF5350);
-  }
-
-  String get _label {
-    if (progress >= 0.75) return 'Great';
-    if (progress >= 0.45) return 'Good';
-    return 'Build';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pct = (progress * 100).round();
-    return SizedBox(width: size, height: size,
-      child: Stack(alignment: Alignment.center, children: [
-        CustomPaint(size: Size(size, size),
-          painter: _RingPainter(progress: progress, color: _color, trackColor: Colors.white.withValues(alpha: 0.18))),
-        Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('$pct%', style: GoogleFonts.montserrat(
-            color: Colors.white, fontSize: size * 0.2, fontWeight: FontWeight.w800, height: 1)),
-          Text(_label, style: GoogleFonts.inter(color: _color, fontSize: size * 0.13, fontWeight: FontWeight.w700)),
-          Text('Health', style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.55), fontSize: size * 0.11)),
-        ]),
-      ]),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TAB 0 — HOME DASHBOARD
-// ─────────────────────────────────────────────────────────────────────────────
 class _HomeDashboardTab extends StatefulWidget {
   final VoidCallback onViewAllModules;
   const _HomeDashboardTab({required this.onViewAllModules});
@@ -215,11 +153,7 @@ class _HomeDashboardTab extends StatefulWidget {
   State<_HomeDashboardTab> createState() => _HomeDashboardTabState();
 }
 
-class _HomeDashboardTabState extends State<_HomeDashboardTab>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ringCtrl;
-  late Animation<double>   _ringAnim;
-
+class _HomeDashboardTabState extends State<_HomeDashboardTab> {
   static const _quotes = [
     'Success is not final, failure is not fatal.',
     'The secret of getting ahead is getting started.',
@@ -238,25 +172,15 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab>
     return 'Good Evening,';
   }
 
-  double _calcHealth(AuthProvider auth) {
-    int s = 0;
-    if (auth.user?.name?.isNotEmpty  == true) s++;
-    if (auth.user?.email?.isNotEmpty == true) s++;
-    if (auth.isMember)                         s += 2;
-    if (auth.user?.founderProfileComplete == true) s += 2;
-    return (s / 6).clamp(0.0, 1.0);
-  }
 
   @override
   void initState() {
     super.initState();
-    _ringCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
-    _ringAnim = CurvedAnimation(parent: _ringCtrl, curve: Curves.easeOutCubic);
-    _ringCtrl.forward();
   }
 
   @override
-  void dispose() { _ringCtrl.dispose(); super.dispose(); }
+  @override
+  void dispose() { super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -269,10 +193,12 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab>
         // ── COMPACT HEADER ────────────────────────────────────────────────
         SliverToBoxAdapter(
           child: Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [Color(0xFF0D1B4B), Color(0xFF1A3A7C), Color(0xFF1565C0)],
+                colors: auth.isAdmin
+                  ? [const Color(0xFF0A0A0F), const Color(0xFF1A1A2E), const Color(0xFF0D0D1A)]
+                  : [const Color(0xFF0D1B4B), const Color(0xFF1A3A7C), const Color(0xFF1565C0)],
               ),
             ),
             child: SafeArea(
@@ -382,9 +308,9 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: auth.isAdmin ? const Color(0xFF1A1A2E) : Colors.white,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppTheme.primary.withValues(alpha: 0.1)),
+                border: Border.all(color: auth.isAdmin ? Colors.white12 : AppTheme.primary.withValues(alpha: 0.1)),
                 boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 3))],
               ),
               child: Row(children: [

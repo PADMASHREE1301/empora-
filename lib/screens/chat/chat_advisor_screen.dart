@@ -249,7 +249,6 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
   }
 
   String _buildPersonalisedGreeting() {
-    final auth = context.read<AuthProvider>();
     final industry = _industry;
     final stage    = _stage;
     String base = widget.config.greeting;
