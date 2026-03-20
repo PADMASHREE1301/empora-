@@ -35,7 +35,6 @@ import 'package:empora/screens/loans/loans_screen.dart';
 import 'package:empora/screens/payment_screen.dart';
 import 'package:empora/screens/onboarding_screen.dart';
 import 'package:empora/screens/admin/admin_dashboard_screen.dart';
-import 'dart:math' as math;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROOT SCREEN
@@ -75,19 +74,22 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: context.watch<AuthProvider>().isAdmin
           ? const Color(0xFF0F0F18)
           : AppTheme.surface,
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          _HomeDashboardTab(onViewAllModules: () => setState(() => _selectedIndex = 1)),
-          _ModulesTab(
-            filteredModules: _filteredModules,
-            searchController: _searchCtrl,
-            searchQuery: _searchQuery,
-            onSearchChanged: (v) => setState(() => _searchQuery = v),
-          ),
-          const _MyUploadsTab(),
-          const _ProfileTab(),
-        ],
+      body: Consumer<AuthProvider>(
+        builder: (context, auth, _) => IndexedStack(
+          index: _selectedIndex,
+          children: [
+            _HomeDashboardTab(onViewAllModules: () => setState(() => _selectedIndex = 1)),
+            _ModulesTab(
+              filteredModules: _filteredModules,
+              searchController: _searchCtrl,
+              searchQuery: _searchQuery,
+              onSearchChanged: (v) => setState(() => _searchQuery = v),
+            ),
+            const _MyUploadsTab(),
+            const _ProfileTab(),
+            if (auth.isAdmin) const AdminDashboardScreen(),
+          ],
+        ),
       ),
       bottomNavigationBar: _buildBottomNav(),
     );
@@ -102,14 +104,24 @@ class _HomeScreenState extends State<HomeScreen> {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(icon: Icons.home_rounded,       label: 'Home',    isSelected: _selectedIndex == 0, onTap: () => setState(() => _selectedIndex = 0)),
-              _NavItem(icon: Icons.apps_rounded,        label: 'Modules', isSelected: _selectedIndex == 1, onTap: () => setState(() => _selectedIndex = 1)),
-              _NavItem(icon: Icons.upload_file_rounded, label: 'Uploads', isSelected: _selectedIndex == 2, onTap: () => setState(() => _selectedIndex = 2)),
-              _NavItem(icon: Icons.person_rounded,      label: 'Profile', isSelected: _selectedIndex == 3, onTap: () => setState(() => _selectedIndex = 3)),
-            ],
+          child: Consumer<AuthProvider>(
+            builder: (context, auth, _) => Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _NavItem(icon: Icons.home_rounded,            label: 'Home',    isSelected: _selectedIndex == 0, onTap: () => setState(() => _selectedIndex = 0)),
+                _NavItem(icon: Icons.apps_rounded,            label: 'Modules', isSelected: _selectedIndex == 1, onTap: () => setState(() => _selectedIndex = 1)),
+                _NavItem(icon: Icons.upload_file_rounded,     label: 'Uploads', isSelected: _selectedIndex == 2, onTap: () => setState(() => _selectedIndex = 2)),
+                _NavItem(icon: Icons.person_rounded,          label: 'Profile', isSelected: _selectedIndex == 3, onTap: () => setState(() => _selectedIndex = 3)),
+                if (auth.isAdmin)
+                  _NavItem(
+                    icon: Icons.admin_panel_settings_rounded,
+                    label: 'Admin',
+                    isSelected: _selectedIndex == 4,
+                    onTap: () => setState(() => _selectedIndex = 4),
+                    color: const Color(0xFFE94560),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -218,20 +230,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
                           Text('EMPORA', style: GoogleFonts.montserrat(
                             color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 3)),
                           const Spacer(),
-                          if (auth.isAdmin)
-                            GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen())),
-                              child: Container(
-                                margin: const EdgeInsets.only(right: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(color: AppTheme.accentGold, borderRadius: BorderRadius.circular(20)),
-                                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                  const Icon(Icons.admin_panel_settings, color: Colors.white, size: 12),
-                                  const SizedBox(width: 4),
-                                  Text('Admin', style: GoogleFonts.inter(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                                ]),
-                              ),
-                            ),
+
                           GestureDetector(
                             onTap: () {
                               context.read<AuthProvider>().logout();
@@ -1278,21 +1277,26 @@ class _ModuleCardState extends State<_ModuleCard> with SingleTickerProviderState
 // NAV ITEM
 // ─────────────────────────────────────────────────────────────────────────────
 class _NavItem extends StatelessWidget {
-  final IconData icon; final String label; final bool isSelected; final VoidCallback onTap;
-  const _NavItem({required this.icon, required this.label, required this.isSelected, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Color? color;
+  const _NavItem({required this.icon, required this.label, required this.isSelected, required this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = color ?? AppTheme.primary;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 10, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary : Colors.transparent,
+          color: isSelected ? activeColor : Colors.transparent,
           borderRadius: BorderRadius.circular(30)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: isSelected ? Colors.white : AppTheme.textSecondary, size: 22),
+          Icon(icon, color: isSelected ? Colors.white : (color ?? AppTheme.textSecondary), size: 22),
           if (isSelected) ...[
             const SizedBox(width: 6),
             Text(label, style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),

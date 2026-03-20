@@ -40,7 +40,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F18),
+      backgroundColor: const Color(0xFF0A0A0F),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         elevation: 0,
@@ -128,11 +128,15 @@ class _OverviewTabState extends State<_OverviewTab> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final res = await ApiService.adminGet('/dashboard');
-      // Some backends wrap the payload under 'data'
+      final res     = await ApiService.adminGet('/dashboard');
       final payload = (res['data'] is Map<String, dynamic>)
           ? res['data'] as Map<String, dynamic>
           : res;
+      // Also fetch pricing to show revenue
+      try {
+        final pricingRes = await ApiService.adminGet('/pricing');
+        payload['pricing'] = pricingRes['pricing'];
+      } catch (_) {}
       setState(() { _stats = payload; _loading = false; });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
@@ -156,6 +160,16 @@ class _OverviewTabState extends State<_OverviewTab> {
     final pending     = (subsMap['pending']     ?? s['pendingApprovals'] ?? _stats['pendingApprovals'] ?? 0) as num;
     final approved    = (subsMap['approved']    ?? s['approvedCount']    ?? 0) as num;
     final rejected    = (subsMap['rejected']    ?? s['rejectedCount']    ?? 0) as num;
+    // Revenue calculation
+    final pricing     = _stats['pricing'] as Map<String, dynamic>? ?? {};
+    final monthlyPrice= (pricing['monthly'] ?? s['pricing']?['monthly'] ?? 999) as num;
+    final yearlyPrice = (pricing['yearly']  ?? s['pricing']?['yearly']  ?? 7999) as num;
+    final monthlyMem  = (usersMap['monthlyMembers'] ?? 0) as num;
+    final yearlyMem   = (usersMap['yearlyMembers']  ?? 0) as num;
+    // Estimate: if breakdown not available, use memberUsers * monthly price
+    final estRevenue  = monthlyMem > 0 || yearlyMem > 0
+        ? (monthlyMem * monthlyPrice + yearlyMem * yearlyPrice)
+        : (memberUsers * monthlyPrice);
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -212,7 +226,7 @@ class _OverviewTabState extends State<_OverviewTab> {
           const SizedBox(height: 20),
           Text('User Stats',
               style: GoogleFonts.montserrat(
-                  fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                  fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 12),
 
           // User stat cards
@@ -227,9 +241,68 @@ class _OverviewTabState extends State<_OverviewTab> {
           ]),
 
           const SizedBox(height: 20),
+
+          // ── REVENUE SECTION ──────────────────────────────────────────────
+          Text('Revenue',
+              style: GoogleFonts.montserrat(
+                  fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1A3A0A), Color(0xFF0A3A1A)],
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.currency_rupee, color: Color(0xFF4CAF50), size: 16),
+                const SizedBox(width: 6),
+                Text('Total Estimated Revenue',
+                    style: GoogleFonts.inter(color: Colors.white60, fontSize: 12)),
+              ]),
+              const SizedBox(height: 8),
+              Text('₹${estRevenue.toStringAsFixed(0)}',
+                  style: GoogleFonts.montserrat(
+                      color: const Color(0xFF4CAF50), fontSize: 32, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Monthly Members', style: GoogleFonts.inter(color: Colors.white54, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text('$memberUsers × ₹$monthlyPrice',
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                ])),
+                Container(width: 1, height: 36, color: Colors.white12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text('Total Members', style: GoogleFonts.inter(color: Colors.white54, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text('$memberUsers active',
+                      style: GoogleFonts.inter(color: const Color(0xFF4CAF50), fontSize: 13, fontWeight: FontWeight.w600)),
+                ])),
+              ]),
+            ]),
+          ),
+
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _StatCard(
+                label: 'Monthly Plan', value: '₹$monthlyPrice',
+                icon: Icons.calendar_month_outlined, color: const Color(0xFF4CAF50))),
+            const SizedBox(width: 12),
+            Expanded(child: _StatCard(
+                label: 'Yearly Plan', value: '₹$yearlyPrice',
+                icon: Icons.calendar_today_outlined, color: AppTheme.accentGold)),
+          ]),
+
+          const SizedBox(height: 20),
           Text('Submissions',
               style: GoogleFonts.montserrat(
-                  fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                  fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 12),
 
           // Submission stat cards

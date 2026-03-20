@@ -6,7 +6,6 @@ import 'services/auth_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/onboarding_screen.dart';
 
 void main() {
@@ -89,8 +88,8 @@ class RootRouter extends StatelessWidget {
     // Not logged in → Login Screen
     if (!auth.isLoggedIn) return const LoginScreen();
 
-    // Admin → Admin Dashboard
-    if (auth.isAdmin) return const AdminDashboardScreen();
+    // Admin → Home Screen (same as users, with extra Admin tab)
+    if (auth.isAdmin) return const HomeScreen();
 
     // New user without founder profile → Onboarding
     if (auth.needsOnboarding) return const OnboardingScreen();
