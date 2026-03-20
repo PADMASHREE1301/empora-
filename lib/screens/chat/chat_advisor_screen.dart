@@ -9,6 +9,7 @@
 //   • Cleaner message bubbles
 //   • Crown logo branding
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -215,6 +216,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
   bool   _isTyping        = false;
   bool   _showSuggestions = true;
   String _industry        = '';
+  String _lastFailedMessage = '';
   String _stage           = '';
   String _bizName         = '';
 
@@ -249,6 +251,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
   }
 
   String _buildPersonalisedGreeting() {
+    final auth = context.read<AuthProvider>();
     final industry = _industry;
     final stage    = _stage;
     String base = widget.config.greeting;
@@ -274,6 +277,9 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
       final result  = await ApiService.sendChatMessage(
         module: widget.config.moduleKey,
         message: '$text\n\n[User profile: $profile]',
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('Request timed out after 30 seconds'),
       );
       final reply = result['message'] as String? ?? result['reply'] as String? ?? 'I\'m here to help! Could you please provide more details about your question?';
       setState(() {
@@ -576,6 +582,8 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
 
   Widget _buildMessage(_ChatMessage msg) {
     final isUser = msg.isUser;
+    final isError = !isUser && (msg.text.contains('❌') || msg.text.contains('📶') || msg.text.contains('⏱️') || msg.text.contains('🔐') || msg.text.contains('🛠️') || msg.text.contains('🔧'));
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -594,30 +602,65 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
             ),
           ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-              decoration: BoxDecoration(
-                color: isUser ? const Color(0xFF1A3A7C) : Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft:     const Radius.circular(16),
-                  topRight:    const Radius.circular(16),
-                  bottomLeft:  Radius.circular(isUser ? 16 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: isError
+                        ? const Color(0xFFFFF3F3)
+                        : isUser ? const Color(0xFF1A3A7C) : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft:     const Radius.circular(16),
+                      topRight:    const Radius.circular(16),
+                      bottomLeft:  Radius.circular(isUser ? 16 : 4),
+                      bottomRight: Radius.circular(isUser ? 4 : 16),
+                    ),
+                    border: isError ? Border.all(color: const Color(0xFFFFCDD2)) : null,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isUser ? 0.12 : 0.06),
+                        blurRadius: 8, offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  child: Text(
+                    msg.text,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: isError
+                          ? const Color(0xFFB71C1C)
+                          : isUser ? Colors.white : const Color(0xFF1A1F36),
+                      height: 1.5,
+                    ),
+                  ),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isUser ? 0.12 : 0.06),
-                    blurRadius: 8, offset: const Offset(0, 2)),
-                ],
-              ),
-              child: Text(
-                msg.text,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: isUser ? Colors.white : const Color(0xFF1A1F36),
-                  height: 1.5,
-                ),
-              ),
+                // Retry button for failed messages
+                if (isError && _lastFailedMessage.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    child: GestureDetector(
+                      onTap: () {
+                        final msg = _lastFailedMessage;
+                        setState(() => _lastFailedMessage = '');
+                        _send(msg);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: widget.config.color,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.refresh, color: Colors.white, size: 13),
+                          const SizedBox(width: 5),
+                          Text('Retry', style: GoogleFonts.inter(
+                            color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                        ]),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           if (isUser) const SizedBox(width: 8),

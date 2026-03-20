@@ -1,4 +1,5 @@
 // lib/services/api_service.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -338,41 +339,13 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
 
   static Future<Map<String, dynamic>> getModuleData({
     required String module,
-    required String? recordId,
+    required String recordId,
   }) async {
-    final url = recordId != null
-        ? '$_baseUrl/$module/$recordId/data'
-        : '$_baseUrl/$module/my';
     final res = await http.get(
-      Uri.parse(url),
+      Uri.parse('$_baseUrl/$module/$recordId/data'),
       headers: await _headers(),
     );
-    final body = _decode(res);
-    // If recordId is null we called /my which returns a list under 'data'
-    if (recordId == null) {
-      final list = body['data'] ?? body['submissions'] ?? body;
-      if (list is List) return {'submissions': list, 'total': list.length};
-      return body; // _decode already returns Map<String, dynamic> — no cast needed
-    }
-    final data = body['data'];
-    if (data is Map<String, dynamic>) return data;
-    return body;
-  }
-
-  // Fetch the current user's submissions list (used in Home tab "My Uploads")
-  static Future<List<Map<String, dynamic>>> getMySubmissions() async {
-    try {
-      final res = await http.get(
-        Uri.parse('$_baseUrl/submissions/my'),
-        headers: await _headers(),
-      );
-      final body = _decode(res);
-      final list = body['submissions'] ?? body['data'] ?? body['records'] ?? [];
-      if (list is List) return list.cast<Map<String, dynamic>>();
-      return [];
-    } catch (_) {
-      return [];
-    }
+    return _decode(res)['data'] as Map<String, dynamic>;
   }
 
   static Future<List<dynamic>> getMyModuleRecords({
@@ -412,18 +385,52 @@ return '$_baseUrl$stored';      }
     } catch (_) {}
 return '$_baseUrl/$module/$recordId/report/pdf';  }
 
+  // ─── SUBMISSIONS ─────────────────────────────────────────────────────────
+
+  static Future<List<Map<String, dynamic>>> getMySubmissions() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/submissions/my'),
+        headers: await _headers(),
+      );
+      final body = _decode(res);
+      final list = body['submissions'] ?? body['data'] ?? body['records'] ?? [];
+      if (list is List) return list.cast<Map<String, dynamic>>();
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ─── CHATBOT ──────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> sendChatMessage({
     required String module,
     required String message,
   }) async {
-    final res = await http.post(
-      Uri.parse('$_baseUrl/chat/$module/message'),
-      headers: await _headers(),
-      body: jsonEncode({'message': message}),
-    );
-    return _decode(res);
+    // Check token exists before calling
+    final token = await _getToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Session expired. Please log out and log in again.', 401);
+    }
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/chat/$module/message'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'message': message}),
+      ).timeout(const Duration(seconds: 30));
+      return _decode(res);
+    } on SocketException {
+      throw const ApiException('No internet connection. Please check your network.', 0);
+    } on TimeoutException {
+      throw const ApiException('Request timed out. Please try again.', 408);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Connection failed: ${e.toString()}', 0);
+    }
   }
 
   static Future<Map<String, dynamic>> getChatHistory({
