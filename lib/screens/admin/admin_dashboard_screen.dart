@@ -119,7 +119,10 @@ class _OverviewTab extends StatefulWidget {
 
 class _OverviewTabState extends State<_OverviewTab> {
   bool _loading = true;
-  Map<String, dynamic> _stats = {};
+  Map<String, dynamic> _stats   = {};
+  Map<String, dynamic> _pricing = {};
+  List _growthData = [];
+  List _recentUsers = [];
   String? _error;
 
   @override
@@ -128,19 +131,64 @@ class _OverviewTabState extends State<_OverviewTab> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final res     = await ApiService.adminGet('/dashboard');
-      final payload = (res['data'] is Map<String, dynamic>)
-          ? res['data'] as Map<String, dynamic>
-          : res;
-      // Also fetch pricing to show revenue
-      try {
-        final pricingRes = await ApiService.adminGet('/pricing');
-        payload['pricing'] = pricingRes['pricing'];
-      } catch (_) {}
-      setState(() { _stats = payload; _loading = false; });
+      // Fetch dashboard + pricing in parallel
+      final results = await Future.wait([
+        ApiService.adminGet('/dashboard'),
+        ApiService.adminGet('/pricing').catchError((_) => <String, dynamic>{}),
+        ApiService.adminGet('/stats').catchError((_) => <String, dynamic>{}),
+      ]);
+
+      final dashRes    = results[0];
+      final pricingRes = results[1];
+      final statsRes   = results[2];
+
+      final raw = (dashRes['data'] is Map<String, dynamic>)
+          ? dashRes['data'] as Map<String, dynamic>
+          : dashRes;
+
+      // Merge pricing
+      if (pricingRes['pricing'] != null) {
+        raw['pricing'] = pricingRes['pricing'];
+      }
+
+      // Merge growth + recent users from /stats if available
+      final statsData = statsRes['stats'] as Map<String, dynamic>? ?? {};
+      if (statsData.isNotEmpty) {
+        _growthData  = statsData['growthData']  as List? ?? [];
+        _recentUsers = statsData['recentUsers'] as List? ?? [];
+
+        // Merge richer user breakdown
+        final statsUsers = statsData['users'] as Map<String, dynamic>? ?? {};
+        final statsRevenue = statsData['revenue'] as Map<String, dynamic>? ?? {};
+        final statsMembership = statsData['membership'] as Map<String, dynamic>? ?? {};
+
+        if (statsUsers.isNotEmpty) raw['statsUsers'] = statsUsers;
+        if (statsRevenue.isNotEmpty) raw['statsRevenue'] = statsRevenue;
+        if (statsMembership.isNotEmpty) raw['statsMembership'] = statsMembership;
+      }
+
+      setState(() { _stats = raw; _pricing = raw['pricing'] as Map<String, dynamic>? ?? {}; _loading = false; });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
     }
+  }
+
+  String _fmt(num v) {
+    if (v >= 10000000) return '₹${(v / 10000000).toStringAsFixed(1)}Cr';
+    if (v >= 100000)   return '₹${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000)     return '₹${(v / 1000).toStringAsFixed(1)}K';
+    return '₹${v.toStringAsFixed(0)}';
+  }
+
+  String _timeAgo(String? t) {
+    if (t == null) return '';
+    final dt = DateTime.tryParse(t);
+    if (dt == null) return '';
+    final d = DateTime.now().difference(dt);
+    if (d.inDays > 0) return '${d.inDays}d ago';
+    if (d.inHours > 0) return '${d.inHours}h ago';
+    if (d.inMinutes > 0) return '${d.inMinutes}m ago';
+    return 'Just now';
   }
 
   @override
@@ -148,186 +196,247 @@ class _OverviewTabState extends State<_OverviewTab> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return _ErrorView(onRetry: _load, message: _error!);
 
-    // Handle all possible response shapes from /api/admin/dashboard
-    final raw         = _stats['data'] ?? _stats['stats'] ?? _stats;
-    final s           = raw is Map<String, dynamic> ? raw : <String, dynamic>{};
-    final usersMap    = (s['users']       as Map<String, dynamic>?) ?? {};
-    final subsMap     = (s['submissions'] as Map<String, dynamic>?) ?? {};
-    final totalUsers  = (usersMap['total']      ?? s['totalUsers']      ?? _stats['totalUsers']      ?? 0) as num;
-    final memberUsers = (usersMap['membership'] ?? s['memberUsers']     ?? _stats['memberUsers']     ?? 0) as num;
-    final freeUsers   = (usersMap['free']       ?? s['freeUsers']       ?? (totalUsers - memberUsers)) as num;
-    final totalSubs   = (subsMap['total']       ?? s['totalSubmissions'] ?? _stats['totalSubmissions'] ?? 0) as num;
-    final pending     = (subsMap['pending']     ?? s['pendingApprovals'] ?? _stats['pendingApprovals'] ?? 0) as num;
-    final approved    = (subsMap['approved']    ?? s['approvedCount']    ?? 0) as num;
-    final rejected    = (subsMap['rejected']    ?? s['rejectedCount']    ?? 0) as num;
-    // Revenue calculation
-    final pricing     = _stats['pricing'] as Map<String, dynamic>? ?? {};
-    final monthlyPrice= (pricing['monthly'] ?? s['pricing']?['monthly'] ?? 999) as num;
-    final yearlyPrice = (pricing['yearly']  ?? s['pricing']?['yearly']  ?? 7999) as num;
-    final monthlyMem  = (usersMap['monthlyMembers'] ?? 0) as num;
-    final yearlyMem   = (usersMap['yearlyMembers']  ?? 0) as num;
-    // Estimate: if breakdown not available, use memberUsers * monthly price
-    final estRevenue  = monthlyMem > 0 || yearlyMem > 0
-        ? (monthlyMem * monthlyPrice + yearlyMem * yearlyPrice)
-        : (memberUsers * monthlyPrice);
+    // ── Parse all stats ────────────────────────────────────────────────────
+    final s            = _stats['data'] ?? _stats['stats'] ?? _stats;
+    final usersMap     = (s['users']       as Map<String, dynamic>?) ?? {};
+    final subsMap      = (s['submissions'] as Map<String, dynamic>?) ?? {};
+    final statsUsers   = (_stats['statsUsers']      as Map<String, dynamic>?) ?? {};
+    final statsRevenue = (_stats['statsRevenue']    as Map<String, dynamic>?) ?? {};
+    final statsMem     = (_stats['statsMembership'] as Map<String, dynamic>?) ?? {};
+
+    // User counts
+    final totalUsers   = (usersMap['total']      ?? s['totalUsers']      ?? statsUsers['total']   ?? 0) as num;
+    final memberUsers  = (usersMap['membership'] ?? s['memberUsers']     ?? statsMem['totalActive']?? 0) as num;
+    final freeUsers    = (usersMap['free']       ?? s['freeUsers']       ?? statsUsers['free']    ?? (totalUsers - memberUsers)) as num;
+    final newToday     = (statsUsers['newToday']     ?? 0) as num;
+    final newThisWeek  = (statsUsers['newThisWeek']  ?? 0) as num;
+    final newThisMonth = (statsUsers['newThisMonth'] ?? 0) as num;
+    final expiringSoon = (statsUsers['expiringSoon'] ?? 0) as num;
+
+    // Monthly / yearly member split
+    final monthlyMem = (usersMap['monthlyMembers'] ?? statsMem['monthly'] ?? 0) as num;
+    final yearlyMem  = (usersMap['yearlyMembers']  ?? statsMem['yearly']  ?? 0) as num;
+
+    // Submission stats
+    final totalSubs = (subsMap['total']   ?? s['totalSubmissions'] ?? 0) as num;
+    final pending   = (subsMap['pending'] ?? s['pendingApprovals'] ?? 0) as num;
+    final approved  = (subsMap['approved']?? s['approvedCount']    ?? 0) as num;
+    final rejected  = (subsMap['rejected']?? s['rejectedCount']    ?? 0) as num;
+
+    // Pricing
+    final monthlyPrice = (_pricing['monthly'] ?? s['pricing']?['monthly'] ?? 999) as num;
+    final yearlyPrice  = (_pricing['yearly']  ?? s['pricing']?['yearly']  ?? 7999) as num;
+
+    // Revenue
+    final revenueFromStats  = (statsRevenue['total']        ?? 0) as num;
+    final thisMonthRevenue  = (statsRevenue['thisMonth']    ?? 0) as num;
+    final activeMonthlyRev  = (statsRevenue['activeMonthly']?? 0) as num;
+    final activeYearlyRev   = (statsRevenue['activeYearly'] ?? 0) as num;
+    // Fallback estimate if /stats not available
+    final estRevenue = revenueFromStats > 0
+        ? revenueFromStats
+        : (monthlyMem > 0 || yearlyMem > 0
+            ? (monthlyMem * monthlyPrice + yearlyMem * yearlyPrice)
+            : (memberUsers * monthlyPrice));
+    final estMonthlyRev = activeMonthlyRev > 0 ? activeMonthlyRev : monthlyMem * monthlyPrice;
+    final estYearlyRev  = activeYearlyRev  > 0 ? activeYearlyRev  : yearlyMem  * yearlyPrice;
+    final estThisMonth  = thisMonthRevenue > 0 ? thisMonthRevenue : 0;
 
     return RefreshIndicator(
       onRefresh: _load,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-          // Header banner
+          // ── HEADER BANNER ───────────────────────────────────────────────
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [const Color(0xFF0A0A0F), Color(0xFF0F3460)],
+                colors: [Color(0xFF0A0A0F), Color(0xFF0F3460)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                const Icon(Icons.admin_panel_settings, color: Colors.white70, size: 18),
-                const SizedBox(width: 8),
-                Text('Platform Overview',
-                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 13)),
+                const Icon(Icons.admin_panel_settings, color: Colors.white70, size: 16),
+                const SizedBox(width: 6),
+                Text('Platform Overview', style: GoogleFonts.inter(color: Colors.white70, fontSize: 12)),
+                const Spacer(),
+                if (newToday > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.success.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text('+$newToday today',
+                        style: GoogleFonts.inter(color: AppTheme.success, fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
               ]),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Row(children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('$totalUsers',
-                      style: GoogleFonts.montserrat(
-                          color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900)),
-                  Text('Total Users',
-                      style: GoogleFonts.inter(color: Colors.white60, fontSize: 12)),
+                      style: GoogleFonts.montserrat(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w900)),
+                  Text('Total Users', style: GoogleFonts.inter(color: Colors.white60, fontSize: 12)),
                 ])),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.workspace_premium, color: AppTheme.accentGold, size: 14),
+                      const SizedBox(width: 5),
+                      Text('$memberUsers Members',
+                          style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ]),
                   ),
-                  child: Row(children: [
-                    const Icon(Icons.workspace_premium, color: AppTheme.accentGold, size: 16),
-                    const SizedBox(width: 6),
-                    Text('$memberUsers Members',
-                        style: GoogleFonts.inter(
-                            color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                  ]),
-                ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.person_outline, color: Colors.white54, size: 14),
+                      const SizedBox(width: 5),
+                      Text('$freeUsers Free',
+                          style: GoogleFonts.inter(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ]),
               ]),
             ]),
           ),
 
           const SizedBox(height: 20),
-          Text('User Stats',
-              style: GoogleFonts.montserrat(
-                  fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
-          const SizedBox(height: 12),
 
-          // User stat cards
+          // ── USER STATS ──────────────────────────────────────────────────
+          _sectionLabel('Users'),
+          const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _StatCard(
-                label: 'Members', value: '$memberUsers',
-                icon: Icons.workspace_premium, color: AppTheme.accentGold)),
-            const SizedBox(width: 12),
-            Expanded(child: _StatCard(
-                label: 'Free Users', value: '$freeUsers',
-                icon: Icons.person_outline, color: AppTheme.accent)),
+            Expanded(child: _StatCard(label: 'Members',   value: '$memberUsers', icon: Icons.workspace_premium, color: AppTheme.accentGold)),
+            const SizedBox(width: 10),
+            Expanded(child: _StatCard(label: 'Free Users', value: '$freeUsers', icon: Icons.person_outline,     color: AppTheme.accent)),
           ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _StatCard(label: 'New This Week',  value: '$newThisWeek',  icon: Icons.trending_up_rounded,    color: AppTheme.success)),
+            const SizedBox(width: 10),
+            Expanded(child: _StatCard(label: 'New This Month', value: '$newThisMonth', icon: Icons.bar_chart_rounded,       color: const Color(0xFF2196F3))),
+          ]),
+
+          // ── EXPIRY ALERT ─────────────────────────────────────────────────
+          if (expiringSoon > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.warning.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, color: AppTheme.warning, size: 18),
+                const SizedBox(width: 8),
+                Text('$expiringSoon membership${expiringSoon > 1 ? 's' : ''} expiring within 7 days',
+                    style: GoogleFonts.inter(color: AppTheme.warning, fontWeight: FontWeight.w600, fontSize: 13)),
+              ]),
+            ),
+          ],
 
           const SizedBox(height: 20),
 
-          // ── REVENUE SECTION ──────────────────────────────────────────────
-          Text('Revenue',
-              style: GoogleFonts.montserrat(
-                  fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
-          const SizedBox(height: 12),
+          // ── MEMBERSHIP PLAN SPLIT ─────────────────────────────────────────
+          _sectionLabel('Membership Breakdown'),
+          const SizedBox(height: 10),
+          _MembershipSplitCard(monthly: monthlyMem.toInt(), yearly: yearlyMem.toInt(), free: freeUsers.toInt()),
+
+          const SizedBox(height: 20),
+
+          // ── REVENUE ──────────────────────────────────────────────────────
+          _sectionLabel('Revenue'),
+          const SizedBox(height: 10),
+
+          // Big revenue card
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF1A3A0A), Color(0xFF0A3A1A)],
+                colors: [Color(0xFF0D2B0D), Color(0xFF0A3A1A)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppTheme.success.withValues(alpha: 0.3)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 const Icon(Icons.currency_rupee, color: Color(0xFF4CAF50), size: 16),
                 const SizedBox(width: 6),
-                Text('Total Estimated Revenue',
-                    style: GoogleFonts.inter(color: Colors.white60, fontSize: 12)),
+                Text('Total Estimated Revenue', style: GoogleFonts.inter(color: Colors.white60, fontSize: 12)),
               ]),
-              const SizedBox(height: 8),
-              Text('₹${estRevenue.toStringAsFixed(0)}',
-                  style: GoogleFonts.montserrat(
-                      color: const Color(0xFF4CAF50), fontSize: 32, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
+              Text(_fmt(estRevenue),
+                  style: GoogleFonts.montserrat(color: const Color(0xFF4CAF50), fontSize: 34, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 14),
+              const Divider(color: Colors.white12),
+              const SizedBox(height: 10),
+              // 3-column breakdown
               Row(children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Monthly Members', style: GoogleFonts.inter(color: Colors.white54, fontSize: 11)),
-                  const SizedBox(height: 2),
-                  Text('$memberUsers × ₹$monthlyPrice',
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                ])),
+                Expanded(child: _RevStat(label: 'This Month', value: _fmt(estThisMonth), color: AppTheme.success)),
                 Container(width: 1, height: 36, color: Colors.white12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text('Total Members', style: GoogleFonts.inter(color: Colors.white54, fontSize: 11)),
-                  const SizedBox(height: 2),
-                  Text('$memberUsers active',
-                      style: GoogleFonts.inter(color: const Color(0xFF4CAF50), fontSize: 13, fontWeight: FontWeight.w600)),
-                ])),
+                Expanded(child: _RevStat(label: 'Monthly Plans', value: _fmt(estMonthlyRev), color: const Color(0xFF2196F3))),
+                Container(width: 1, height: 36, color: Colors.white12),
+                Expanded(child: _RevStat(label: 'Yearly Plans', value: _fmt(estYearlyRev), color: AppTheme.accentGold)),
               ]),
             ]),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+
+          // Plan prices
           Row(children: [
-            Expanded(child: _StatCard(
-                label: 'Monthly Plan', value: '₹$monthlyPrice',
-                icon: Icons.calendar_month_outlined, color: const Color(0xFF4CAF50))),
-            const SizedBox(width: 12),
-            Expanded(child: _StatCard(
-                label: 'Yearly Plan', value: '₹$yearlyPrice',
-                icon: Icons.calendar_today_outlined, color: AppTheme.accentGold)),
+            Expanded(child: _StatCard(label: 'Monthly Price', value: '₹$monthlyPrice', icon: Icons.repeat_rounded,      color: const Color(0xFF4CAF50))),
+            const SizedBox(width: 10),
+            Expanded(child: _StatCard(label: 'Yearly Price',  value: '₹$yearlyPrice',  icon: Icons.star_rate_rounded,   color: AppTheme.accentGold)),
           ]),
+
+          // ── 7-DAY GROWTH CHART ────────────────────────────────────────────
+          if (_growthData.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _sectionLabel('New Users — Last 7 Days'),
+            const SizedBox(height: 10),
+            _GrowthChart(data: _growthData),
+          ],
 
           const SizedBox(height: 20),
-          Text('Submissions',
-              style: GoogleFonts.montserrat(
-                  fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
-          const SizedBox(height: 12),
 
-          // Submission stat cards
+          // ── SUBMISSIONS ───────────────────────────────────────────────────
+          _sectionLabel('Submissions'),
+          const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _StatCard(
-                label: 'Total', value: '$totalSubs',
-                icon: Icons.inbox_outlined, color: const Color(0xFF1A3A7C))),
-            const SizedBox(width: 12),
-            Expanded(child: _StatCard(
-                label: 'Pending', value: '$pending',
-                icon: Icons.pending_outlined, color: AppTheme.warning)),
+            Expanded(child: _StatCard(label: 'Total',    value: '$totalSubs', icon: Icons.inbox_outlined,        color: const Color(0xFF1A3A7C))),
+            const SizedBox(width: 10),
+            Expanded(child: _StatCard(label: 'Pending',  value: '$pending',   icon: Icons.pending_outlined,      color: AppTheme.warning)),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _StatCard(
-                label: 'Approved', value: '$approved',
-                icon: Icons.check_circle_outline, color: AppTheme.success)),
-            const SizedBox(width: 12),
-            Expanded(child: _StatCard(
-                label: 'Rejected', value: '$rejected',
-                icon: Icons.cancel_outlined, color: AppTheme.error)),
+            Expanded(child: _StatCard(label: 'Approved', value: '$approved',  icon: Icons.check_circle_outline,  color: AppTheme.success)),
+            const SizedBox(width: 10),
+            Expanded(child: _StatCard(label: 'Rejected', value: '$rejected',  icon: Icons.cancel_outlined,       color: AppTheme.error)),
           ]),
 
           if (pending > 0) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -340,16 +449,230 @@ class _OverviewTabState extends State<_OverviewTab> {
                 const SizedBox(width: 10),
                 Expanded(child: Text(
                   '$pending submission${pending > 1 ? 's' : ''} awaiting review',
-                  style: GoogleFonts.inter(
-                      color: AppTheme.warning, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.inter(color: AppTheme.warning, fontWeight: FontWeight.w600),
                 )),
               ]),
+            ),
+          ],
+
+          // ── RECENT SIGNUPS ────────────────────────────────────────────────
+          if (_recentUsers.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _sectionLabel('Recent Signups'),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A2E),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                children: List.generate(_recentUsers.length, (i) {
+                  final u = _recentUsers[i] as Map<String, dynamic>;
+                  final isMember = u['isMember'] as bool? ?? false;
+                  final plan = u['membershipPlan'] as String? ?? '';
+                  return Column(children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(children: [
+                        Container(
+                          width: 38, height: 38,
+                          decoration: BoxDecoration(
+                            color: isMember
+                                ? AppTheme.accentGold.withValues(alpha: 0.15)
+                                : Colors.white.withValues(alpha: 0.06),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(child: Text(
+                            ((u['name'] as String?) ?? '?').isNotEmpty
+                                ? (u['name'] as String)[0].toUpperCase() : '?',
+                            style: GoogleFonts.montserrat(
+                              color: isMember ? AppTheme.accentGold : Colors.white54,
+                              fontWeight: FontWeight.w800, fontSize: 15),
+                          )),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(u['name'] as String? ?? '—',
+                              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                          Text(u['email'] as String? ?? '',
+                              style: GoogleFonts.inter(color: Colors.white38, fontSize: 11)),
+                        ])),
+                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isMember
+                                  ? AppTheme.accentGold.withValues(alpha: 0.15)
+                                  : Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              isMember ? plan.toUpperCase() : 'FREE',
+                              style: GoogleFonts.inter(
+                                color: isMember ? AppTheme.accentGold : Colors.white38,
+                                fontSize: 10, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(_timeAgo(u['createdAt'] as String?),
+                              style: GoogleFonts.inter(color: Colors.white24, fontSize: 10)),
+                        ]),
+                      ]),
+                    ),
+                    if (i < _recentUsers.length - 1)
+                      const Divider(color: Colors.white12, height: 1),
+                  ]);
+                }),
+              ),
             ),
           ],
 
           const SizedBox(height: 30),
         ]),
       ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Text(text,
+      style: GoogleFonts.montserrat(
+          fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white70,
+          letterSpacing: 0.5));
+}
+
+// ── Revenue sub-stat ───────────────────────────────────────────────────────────
+class _RevStat extends StatelessWidget {
+  final String label, value;
+  final Color color;
+  const _RevStat({required this.label, required this.value, required this.color});
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    Text(value, style: GoogleFonts.montserrat(color: color, fontSize: 13, fontWeight: FontWeight.w800)),
+    const SizedBox(height: 2),
+    Text(label, textAlign: TextAlign.center,
+        style: GoogleFonts.inter(color: Colors.white38, fontSize: 10)),
+  ]);
+}
+
+// ── Membership split bar ───────────────────────────────────────────────────────
+class _MembershipSplitCard extends StatelessWidget {
+  final int monthly, yearly, free;
+  const _MembershipSplitCard({required this.monthly, required this.yearly, required this.free});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = monthly + yearly + free;
+    if (total == 0) return Container(
+      height: 56, alignment: Alignment.center,
+      decoration: BoxDecoration(color: const Color(0xFF1A1A2E), borderRadius: BorderRadius.circular(14)),
+      child: Text('No users yet', style: GoogleFonts.inter(color: Colors.white24, fontSize: 12)),
+    );
+    final mPct = (monthly / total * 100).round();
+    final yPct = (yearly  / total * 100).round();
+    final fPct = (free    / total * 100).round();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(children: [
+        // Bar
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(height: 13, child: Row(children: [
+            if (mPct > 0) Expanded(flex: mPct, child: Container(color: const Color(0xFF2196F3))),
+            if (yPct > 0) Expanded(flex: yPct, child: Container(color: AppTheme.accentGold)),
+            if (fPct > 0) Expanded(flex: fPct, child: Container(color: const Color(0xFF2A2A4E))),
+          ])),
+        ),
+        const SizedBox(height: 14),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          _BarLeg(color: const Color(0xFF2196F3), label: 'Monthly', count: monthly, pct: mPct),
+          _BarLeg(color: AppTheme.accentGold,     label: 'Yearly',  count: yearly,  pct: yPct),
+          _BarLeg(color: const Color(0xFF3A3A5E), label: 'Free',    count: free,    pct: fPct),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _BarLeg extends StatelessWidget {
+  final Color color; final String label; final int count, pct;
+  const _BarLeg({required this.color, required this.label, required this.count, required this.pct});
+  @override
+  Widget build(BuildContext context) => Row(children: [
+    Container(width: 9, height: 9, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+    const SizedBox(width: 6),
+    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('$count', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+      Text('$label ($pct%)', style: GoogleFonts.inter(color: Colors.white38, fontSize: 10)),
+    ]),
+  ]);
+}
+
+// ── 7-day growth chart (pure Flutter, no extra package) ───────────────────────
+class _GrowthChart extends StatelessWidget {
+  final List data;
+  const _GrowthChart({required this.data});
+  @override
+  Widget build(BuildContext context) {
+    final maxVal = data.map((d) => (d as Map)['count'] as int? ?? 0).fold(0, (a, b) => a > b ? a : b);
+    final peak   = maxVal == 0 ? 1 : maxVal;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(children: [
+        SizedBox(
+          height: 90,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: data.map((d) {
+              final m     = d as Map<String, dynamic>;
+              final count = m['count'] as int? ?? 0;
+              final pct   = count / peak;
+              return Expanded(child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  if (count > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text('$count', style: GoogleFonts.inter(
+                          color: Colors.white54, fontSize: 9, fontWeight: FontWeight.w700)),
+                    ),
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+                    child: Container(
+                      height: (pct * 72).clamp(4.0, 72.0),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                          colors: [Color(0xFF1A3A7C), Color(0xFF2196F3)],
+                        ),
+                      ),
+                    ),
+                  ),
+                ]),
+              ));
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: data.map((d) => Expanded(child: Text(
+            (d as Map)['label'] as String? ?? '',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(color: Colors.white30, fontSize: 9),
+          ))).toList(),
+        ),
+      ]),
     );
   }
 }
@@ -570,7 +893,7 @@ class _SubmissionsTabState extends State<_SubmissionsTab>
   int    _total       = 0;
   String? _error;
 
-  final _tabs = ['All', 'pending', 'approved', 'rejected'];
+  final _tabs = ['All', 'pending', 'approved', 'rejected', 'completed'];
 
   @override
   void initState() {
@@ -864,6 +1187,68 @@ class _UserCard extends StatelessWidget {
                 ]),
               ),
             ),
+            const SizedBox(width: 4),
+            // ── 3-dot quick actions ──────────────────────────────────────
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white54, size: 18),
+              color: const Color(0xFF1A1A2E),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              onSelected: (action) {
+                switch (action) {
+                  case 'upgrade':
+                    onUpdate(id, {'role': 'membership', 'membershipStatus': 'active'});
+                    break;
+                  case 'downgrade':
+                    onUpdate(id, {'role': 'free', 'membershipStatus': 'inactive'});
+                    break;
+                  case 'deactivate':
+                    onUpdate(id, {'isActive': false});
+                    break;
+                  case 'activate':
+                    onUpdate(id, {'isActive': true});
+                    break;
+                }
+              },
+              itemBuilder: (_) => [
+                if (role == 'free')
+                  PopupMenuItem(
+                    value: 'upgrade',
+                    child: Row(children: [
+                      const Icon(Icons.workspace_premium, size: 16, color: AppTheme.accentGold),
+                      const SizedBox(width: 8),
+                      Text('Upgrade to Member',
+                          style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+                    ]),
+                  ),
+                if (role == 'membership')
+                  PopupMenuItem(
+                    value: 'downgrade',
+                    child: Row(children: [
+                      const Icon(Icons.person_outline, size: 16, color: AppTheme.textSecondary),
+                      const SizedBox(width: 8),
+                      Text('Set as Free',
+                          style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
+                    ]),
+                  ),
+                PopupMenuItem(
+                  value: active ? 'deactivate' : 'activate',
+                  child: Row(children: [
+                    Icon(
+                      active ? Icons.block : Icons.check_circle,
+                      size: 16,
+                      color: active ? AppTheme.error : AppTheme.success,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      active ? 'Deactivate User' : 'Activate User',
+                      style: GoogleFonts.inter(
+                          color: active ? AppTheme.error : AppTheme.success,
+                          fontSize: 13),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
           ]),
         ),
 
@@ -919,10 +1304,11 @@ class _SubmissionCard extends StatelessWidget {
 
   Color _statusColor(String s) {
     switch (s) {
-      case 'approved':  return AppTheme.success;
-      case 'rejected':  return AppTheme.error;
-      case 'completed': return AppTheme.accent;
-      default:          return AppTheme.warning;
+      case 'approved':   return AppTheme.success;
+      case 'rejected':   return AppTheme.error;
+      case 'completed':  return AppTheme.accent;
+      case 'processing': return AppTheme.warning;
+      default:           return AppTheme.accentGold;
     }
   }
 
@@ -1088,10 +1474,11 @@ class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.status});
   @override
   Widget build(BuildContext context) {
-    final color = status == 'approved' ? AppTheme.success
-        : status == 'rejected' ? AppTheme.error
-        : status == 'completed' ? AppTheme.accent
-        : AppTheme.warning;
+    final color = status == 'approved'   ? AppTheme.success
+        : status == 'rejected'   ? AppTheme.error
+        : status == 'completed'  ? AppTheme.accent
+        : status == 'processing' ? AppTheme.warning
+        : AppTheme.accentGold;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(

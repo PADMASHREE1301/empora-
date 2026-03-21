@@ -237,21 +237,6 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
                             color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 3)),
                           const Spacer(),
 
-                          GestureDetector(
-                            onTap: () {
-                              context.read<AuthProvider>().logout();
-                              Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
-                            },
-                            child: Container(
-                              width: 32, height: 32,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(9)),
-                              child: const Icon(Icons.logout_outlined, color: Colors.white, size: 16),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
                           // 🔔 Bell with badge
                           GestureDetector(
                             onTap: () async {
@@ -284,7 +269,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
                             ]),
                           ),
                           const SizedBox(width: 6),
-                          // placeholder to keep original logout button structure
+                          // Logout button
                           GestureDetector(
                             onTap: () {
                               context.read<AuthProvider>().logout();
