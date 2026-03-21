@@ -16,6 +16,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:empora/theme/app_theme.dart';
+import 'package:empora/screens/notifications_screen.dart';
 import 'package:empora/models/module_model.dart';
 import 'package:empora/services/auth_provider.dart';
 import 'package:empora/services/api_service.dart';
@@ -166,6 +167,18 @@ class _HomeDashboardTab extends StatefulWidget {
 }
 
 class _HomeDashboardTabState extends State<_HomeDashboardTab> {
+  int _unreadCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final count = await ApiService.getUnreadNotificationCount();
+    if (mounted) setState(() => _unreadCount = count);
+  }
   static const _quotes = [
     'Success is not final, failure is not fatal.',
     'The secret of getting ahead is getting started.',
@@ -184,13 +197,6 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
     return 'Good Evening,';
   }
 
-
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
   @override
   void dispose() { super.dispose(); }
 
@@ -231,6 +237,54 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
                             color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 3)),
                           const Spacer(),
 
+                          GestureDetector(
+                            onTap: () {
+                              context.read<AuthProvider>().logout();
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
+                            },
+                            child: Container(
+                              width: 32, height: 32,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(9)),
+                              child: const Icon(Icons.logout_outlined, color: Colors.white, size: 16),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          // 🔔 Bell with badge
+                          GestureDetector(
+                            onTap: () async {
+                              await Navigator.push(context,
+                                MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+                              _loadUnreadCount();
+                            },
+                            child: Stack(clipBehavior: Clip.none, children: [
+                              Container(
+                                width: 32, height: 32,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(9)),
+                                child: const Icon(Icons.notifications_outlined, color: Colors.white, size: 18),
+                              ),
+                              if (_unreadCount > 0)
+                                Positioned(
+                                  right: -2, top: -2,
+                                  child: Container(
+                                    width: 16, height: 16,
+                                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                    child: Center(
+                                      child: Text(
+                                        _unreadCount > 9 ? '9+' : '$_unreadCount',
+                                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ]),
+                          ),
+                          const SizedBox(width: 6),
+                          // placeholder to keep original logout button structure
                           GestureDetector(
                             onTap: () {
                               context.read<AuthProvider>().logout();
@@ -579,7 +633,7 @@ class _MyUploadsTabState extends State<_MyUploadsTab> {
     setState(() => _loading = true);
     try {
       final list = await ApiService.getMySubmissions();
-      setState(() { _submissions = list; _loading = false; });
+      setState(() { _submissions = list.cast<Map<String, dynamic>>(); _loading = false; });
     } catch (_) { setState(() => _loading = false); }
   }
 

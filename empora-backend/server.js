@@ -26,6 +26,7 @@ app.use('/api/ai',                 require('./routes/aiRoutes'));
 app.use('/api/admin',              require('./routes/adminRoutes'));
 app.use('/api/payment',            require('./routes/paymentRoutes'));
 app.use('/api/chat',               require('./routes/chatRoutes'));
+app.use('/api/notifications',      require('./routes/notificationRoutes'));
 
 // Each module gets its OWN collection and route prefix
 app.use('/api/stratic',            createModuleRouter(require('./models/Stratic')));
@@ -69,6 +70,12 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB connected');
+
+    // ─── Daily membership expiry check (runs every 24 hours) ─────────────────
+    const { checkMembershipExpiry } = require('./controllers/notificationController');
+    checkMembershipExpiry(); // run once on startup
+    setInterval(checkMembershipExpiry, 24 * 60 * 60 * 1000); // then every 24h
+    console.log('⏰ Membership expiry checker started');
     console.log('📦 Collections: fundraisings, stratics, taxations, landlegals, licences, loans, riskmanagements, projectmanagements, cybersecurities, restructures');
   })
   .catch((err) => {

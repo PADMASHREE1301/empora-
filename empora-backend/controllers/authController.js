@@ -1,8 +1,9 @@
 // empora-backend/controllers/authController.js
 
-const User = require('../models/User');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const User         = require('../models/User');
+const bcrypt       = require('bcryptjs');
+const jwt          = require('jsonwebtoken');
+const Notification = require('../models/Notification');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,16 @@ exports.register = async (req, res) => {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       role: assignedRole,
+    });
+
+    // Send welcome notification
+    await Notification.create({
+      userId:  user._id,
+      title:   '🎉 Welcome to EMPORA!',
+      message: 'Your account is ready. Complete your business profile to get personalized AI advice from all 10 advisors.',
+      type:    'welcome',
+      icon:    'celebration',
+      color:   '#1A3A6B',
     });
 
     const token = generateToken(user._id);
@@ -274,6 +285,16 @@ exports.upgradeMembership = async (req, res) => {
       },
       { new: true }
     );
+
+    // Send membership notification
+    await Notification.create({
+      userId:  req.user.id,
+      title:   '🏆 Membership Activated!',
+      message: `Your ${plan} membership is now active. All 10 AI advisor modules are unlocked. Enjoy!`,
+      type:    'payment',
+      icon:    'workspace_premium',
+      color:   '#C9A030',
+    });
 
     return res.status(200).json({
       success: true,

@@ -1,5 +1,4 @@
 // lib/services/api_service.dart
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -385,52 +384,18 @@ return '$_baseUrl$stored';      }
     } catch (_) {}
 return '$_baseUrl/$module/$recordId/report/pdf';  }
 
-  // ─── SUBMISSIONS ─────────────────────────────────────────────────────────
-
-  static Future<List<Map<String, dynamic>>> getMySubmissions() async {
-    try {
-      final res = await http.get(
-        Uri.parse('$_baseUrl/submissions/my'),
-        headers: await _headers(),
-      );
-      final body = _decode(res);
-      final list = body['submissions'] ?? body['data'] ?? body['records'] ?? [];
-      if (list is List) return list.cast<Map<String, dynamic>>();
-      return [];
-    } catch (_) {
-      return [];
-    }
-  }
-
   // ─── CHATBOT ──────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> sendChatMessage({
     required String module,
     required String message,
   }) async {
-    // Check token exists before calling
-    final token = await _getToken();
-    if (token == null || token.isEmpty) {
-      throw const ApiException('Session expired. Please log out and log in again.', 401);
-    }
-    try {
-      final res = await http.post(
-        Uri.parse('$_baseUrl/chat/$module/message'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'message': message}),
-      ).timeout(const Duration(seconds: 30));
-      return _decode(res);
-    } on SocketException {
-      throw const ApiException('No internet connection. Please check your network.', 0);
-    } on TimeoutException {
-      throw const ApiException('Request timed out. Please try again.', 408);
-    } catch (e) {
-      if (e is ApiException) rethrow;
-      throw ApiException('Connection failed: ${e.toString()}', 0);
-    }
+    final res = await http.post(
+      Uri.parse('$_baseUrl/chat/$module/message'),
+      headers: await _headers(),
+      body: jsonEncode({'message': message}),
+    );
+    return _decode(res);
   }
 
   static Future<Map<String, dynamic>> getChatHistory({
@@ -580,6 +545,72 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
       default:     return 'application/octet-stream';
     }
   }
+
+  // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getNotifications() async {
+    final res = await http.get(
+      Uri.parse('$_baseUrl/notifications'),
+      headers: await _headers(),
+    );
+    return _decode(res);
+  }
+
+  static Future<int> getUnreadNotificationCount() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/notifications/unread-count'),
+        headers: await _headers(),
+      );
+      final data = _decode(res);
+      return data['unreadCount'] as int? ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  static Future<void> markNotificationRead(String id) async {
+    final res = await http.put(
+      Uri.parse('$_baseUrl/notifications/$id/read'),
+      headers: await _headers(),
+    );
+    _decode(res);
+  }
+
+  static Future<void> markAllNotificationsRead() async {
+    final res = await http.put(
+      Uri.parse('$_baseUrl/notifications/read-all'),
+      headers: await _headers(),
+    );
+    _decode(res);
+  }
+
+  static Future<void> deleteNotification(String id) async {
+    final res = await http.delete(
+      Uri.parse('$_baseUrl/notifications/$id'),
+      headers: await _headers(),
+    );
+    _decode(res);
+  }
+
+  static Future<void> clearAllNotifications() async {
+    final res = await http.delete(
+      Uri.parse('$_baseUrl/notifications/clear-all'),
+      headers: await _headers(),
+    );
+    _decode(res);
+  }
+
+  // ─── MY SUBMISSIONS ───────────────────────────────────────────────────────
+
+  static Future<List<dynamic>> getMySubmissions() async {
+    final res = await http.get(
+      Uri.parse('$_baseUrl/fund/my'),
+      headers: await _headers(),
+    );
+    return _decode(res)['data'] as List<dynamic>? ?? [];
+  }
+
 }
 
 class ApiException implements Exception {
