@@ -104,16 +104,16 @@ class _AdminSubmissionsScreenState extends State<AdminSubmissionsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: const Color(0xFF0A0A0F),
       appBar: AppBar(
         title: Text('Submissions ($_total)'),
-        backgroundColor: const Color(0xFF1A237E),
+        backgroundColor: const Color(0xFF0A0A0F),
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
           controller: _tabCtrl,
           isScrollable: true,
-          indicatorColor: Colors.white,
+          indicatorColor: const Color(0xFFE94560),
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           tabs: _tabs.map((t) => Tab(text: t[0].toUpperCase() + t.substring(1))).toList(),
@@ -125,9 +125,9 @@ class _AdminSubmissionsScreenState extends State<AdminSubmissionsScreen>
               onRefresh: _load,
               child: _submissions.isEmpty
                   ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.inbox_outlined, size: 60, color: Colors.grey.shade300),
+                      Icon(Icons.inbox_outlined, size: 60, color: Colors.white24),
                       const SizedBox(height: 12),
-                      Text('No submissions found.', style: TextStyle(color: Colors.grey.shade600)),
+                      const Text('No submissions found.', style: TextStyle(color: Colors.white38)),
                     ]))
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
@@ -170,9 +170,8 @@ class _SubmissionCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
         border: Border(left: BorderSide(color: _statusColor(status), width: 4)),
       ),
       child: Padding(
@@ -182,24 +181,24 @@ class _SubmissionCard extends StatelessWidget {
           children: [
             Row(children: [
               Expanded(child: Text(data['title'] ?? 'Untitled',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white))),
               _StatusBadge(status: status),
             ]),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A237E).withOpacity(0.08),
+                color: Colors.white.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(moduleType,
-                  style: const TextStyle(color: Color(0xFF1A237E), fontSize: 11, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 10),
             Row(children: [
-              const Icon(Icons.person_outline, size: 14, color: Colors.grey),
+              const Icon(Icons.person_outline, size: 14, color: Colors.white38),
               const SizedBox(width: 4),
-              Text(user['name'] ?? 'Unknown', style: const TextStyle(fontSize: 13)),
+              Text(user['name'] ?? 'Unknown', style: const TextStyle(fontSize: 13, color: Colors.white70)),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -218,14 +217,14 @@ class _SubmissionCard extends StatelessWidget {
             ]),
             const SizedBox(height: 4),
             Row(children: [
-              const Icon(Icons.email_outlined, size: 14, color: Colors.grey),
+              const Icon(Icons.email_outlined, size: 14, color: Colors.white38),
               const SizedBox(width: 4),
-              Text(user['email'] ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              Text(user['email'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.white38)),
             ]),
 
             if (status == 'pending') ...[
               const SizedBox(height: 12),
-              const Divider(height: 1),
+              const Divider(height: 1, color: Colors.white12),
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(child: OutlinedButton.icon(
@@ -256,15 +255,15 @@ class _SubmissionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: Colors.red.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
+                  border: Border.all(color: Colors.red.withOpacity(0.25)),
                 ),
                 child: Row(children: [
-                  Icon(Icons.info_outline, size: 14, color: Colors.red.shade700),
+                  const Icon(Icons.info_outline, size: 14, color: Colors.redAccent),
                   const SizedBox(width: 6),
                   Expanded(child: Text(data['rejectionReason'] as String,
-                      style: TextStyle(fontSize: 12, color: Colors.red.shade800))),
+                      style: const TextStyle(fontSize: 12, color: Colors.redAccent))),
                 ]),
               ),
             ],
@@ -291,7 +290,7 @@ class _StatusBadge extends StatelessWidget {
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
       child: Text(status[0].toUpperCase() + status.substring(1),
           style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
     );

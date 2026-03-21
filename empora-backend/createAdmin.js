@@ -14,6 +14,8 @@ const UserSchema = new mongoose.Schema({
   role:             String,
   membershipStatus: String,
   isActive:         Boolean,
+  isAdmin:          Boolean,
+  isApproved:       Boolean,
 }, { timestamps: true });
 
 const User = mongoose.model('User', UserSchema);
@@ -39,6 +41,8 @@ async function createAdmin() {
     role:             'admin',
     membershipStatus: 'inactive',
     isActive:         true,
+    isAdmin:          true,   // ← marks as admin
+    isApproved:       true,   // ← admin is always approved
   });
 
   console.log('🎉 Admin created successfully!');

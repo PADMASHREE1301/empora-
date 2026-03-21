@@ -66,10 +66,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: const Color(0xFF0A0A0F),
       appBar: AppBar(
         title: Text('Users ($_total)'),
-        backgroundColor: const Color(0xFF1A237E),
+        backgroundColor: const Color(0xFF0A0A0F),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -77,7 +77,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         children: [
           // Filter bar
           Container(
-            color: const Color(0xFF1A237E),
+            color: const Color(0xFF0A0A0F),
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
               children: [
@@ -127,7 +127,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: _users.isEmpty
-                        ? Center(child: Text('No users found.', style: TextStyle(color: Colors.grey.shade600)))
+                        ? Center(child: const Text('No users found.', style: TextStyle(color: Colors.white38)))
                         : ListView.builder(
                             padding: const EdgeInsets.all(16),
                             itemCount: _users.length,
@@ -158,9 +158,9 @@ class _UserTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
+        border: Border.all(color: Colors.white12),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -172,26 +172,26 @@ class _UserTile extends StatelessWidget {
           ),
         ),
         title: Row(children: [
-          Expanded(child: Text(user['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600))),
+          Expanded(child: Text(user['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white))),
           _RoleBadge(role: role),
         ]),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 2),
-            Text(user['email'] ?? '', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            Text(user['email'] ?? '', style: const TextStyle(color: Colors.white54, fontSize: 12)),
             const SizedBox(height: 4),
             Row(children: [
               Icon(active ? Icons.check_circle : Icons.block,
                   size: 12, color: active ? Colors.green : Colors.red),
               const SizedBox(width: 4),
               Text(active ? 'Active' : 'Deactivated',
-                  style: TextStyle(fontSize: 11, color: active ? Colors.green : Colors.red)),
+                  style: TextStyle(fontSize: 11, color: active ? Colors.greenAccent : Colors.redAccent)),
             ]),
           ],
         ),
         trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert),
+          icon: const Icon(Icons.more_vert, color: Colors.white54),
           onSelected: (action) {
             switch (action) {
               case 'upgrade':

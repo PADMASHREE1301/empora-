@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:empora/theme/app_theme.dart';
 import 'package:empora/models/module_model.dart';
+import 'package:empora/screens/chat/chat_advisor_screen.dart';
 
 class ModuleScreen extends StatelessWidget {
   final AppModule module;
@@ -175,52 +176,55 @@ class ModuleScreen extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  // Coming soon banner
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [module.color.withOpacity(0.1), module.lightColor],
+                  // ── AI Chat CTA ─────────────────────────────────────────
+                  GestureDetector(
+                    onTap: () {
+                      final config = _advisorConfigFor(module);
+                      if (config != null) {
+                        Navigator.push(context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatAdvisorScreen(config: config)));
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [module.color, module.color.withValues(alpha: 0.75)],
+                          begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [BoxShadow(
+                          color: module.color.withValues(alpha: 0.35),
+                          blurRadius: 16, offset: const Offset(0, 6))],
                       ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: module.color.withOpacity(0.2)),
-                    ),
-                    child: Row(
-                      children: [
+                      child: Row(children: [
                         Container(
-                          width: 44,
-                          height: 44,
+                          width: 50, height: 50,
                           decoration: BoxDecoration(
-                            color: module.color.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Icon(Icons.rocket_launch_outlined, color: module.color, size: 22),
+                          child: const Icon(Icons.chat_outlined, color: Colors.white, size: 26),
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Full Features Coming Soon',
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: module.color,
-                                ),
-                              ),
-                              Text(
-                                'We are actively building ${module.title} module features.',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: AppTheme.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                        const SizedBox(width: 16),
+                        Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Ask AI Advisor',
+                              style: GoogleFonts.montserrat(
+                                color: Colors.white, fontSize: 16,
+                                fontWeight: FontWeight.w700)),
+                            Text('Get instant AI-powered advice for ${module.title}',
+                              style: GoogleFonts.inter(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                fontSize: 12)),
+                          ],
+                        )),
+                        const Icon(Icons.arrow_forward_ios,
+                          color: Colors.white, size: 16),
+                      ]),
                     ),
                   ),
 
@@ -354,5 +358,19 @@ class _ActionTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+// ─── Map module ID to AdvisorConfig ──────────────────────────────────────────
+AdvisorConfig? _advisorConfigFor(AppModule module) {
+  switch (module.id) {
+    case 3:  return AdvisorConfigs.taxation;
+    case 4:  return AdvisorConfigs.landLegal;
+    case 5:  return AdvisorConfigs.licence;
+    case 6:  return AdvisorConfigs.loans;
+    case 7:  return AdvisorConfigs.risk;
+    case 8:  return AdvisorConfigs.project;
+    case 9:  return AdvisorConfigs.cyber;
+    case 10: return AdvisorConfigs.restructure;
+    default: return null;
   }
 }

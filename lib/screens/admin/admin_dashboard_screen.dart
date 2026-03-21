@@ -840,7 +840,7 @@ class _UsersTabState extends State<_UsersTab> {
 
       // Total count
       Container(
-        color: Colors.white,
+        color: const Color(0xFF0A0A0F),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(children: [
           Text('$_total users',
@@ -1265,7 +1265,7 @@ class _SubmissionCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(14),
         border: Border(left: BorderSide(color: _statusColor(status), width: 4)),
         boxShadow: [BoxShadow(
@@ -1277,7 +1277,7 @@ class _SubmissionCard extends StatelessWidget {
           Row(children: [
             Expanded(child: Text(title,
                 style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700, color: AppTheme.textPrimary))),
+                    fontWeight: FontWeight.w700, color: Colors.white))),
             _StatusBadge(status: status),
           ]),
           const SizedBox(height: 6),
@@ -1285,19 +1285,19 @@ class _SubmissionCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A3A7C).withValues(alpha: 0.08),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(moduleType,
                   style: GoogleFonts.inter(
-                      color: const Color(0xFF0A0A0F), fontSize: 10, fontWeight: FontWeight.w700)),
+                      color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w700)),
             ),
           const SizedBox(height: 10),
           Row(children: [
-            const Icon(Icons.person_outline, size: 14, color: AppTheme.textSecondary),
+            const Icon(Icons.person_outline, size: 14, color: Colors.white38),
             const SizedBox(width: 4),
             Text(user['name'] as String? ?? 'Unknown',
-                style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textPrimary)),
+                style: GoogleFonts.inter(fontSize: 13, color: Colors.white70)),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1316,11 +1316,11 @@ class _SubmissionCard extends StatelessWidget {
           ]),
           const SizedBox(height: 2),
           Row(children: [
-            const Icon(Icons.email_outlined, size: 14, color: AppTheme.textSecondary),
+            const Icon(Icons.email_outlined, size: 14, color: Colors.white38),
             const SizedBox(width: 4),
             Text(user['email'] as String? ?? '',
                 style: GoogleFonts.inter(
-                    fontSize: 12, color: AppTheme.textSecondary)),
+                    fontSize: 12, color: Colors.white38)),
           ]),
 
           if (status == 'rejected' && reason.isNotEmpty) ...[
@@ -1737,7 +1737,7 @@ class _PricePreviewState extends State<_PricePreview> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: const Color(0xFF1A1A2E),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),

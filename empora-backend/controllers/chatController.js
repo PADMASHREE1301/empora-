@@ -172,7 +172,30 @@ Your style:
 - Remember their team size, industry, and customer base`,
 };
 
-// ─── Build founder profile context string ─────────────────────────────────────
+// ─── Module key aliases — Flutter sends snake_case, map to camelCase ──────────
+const MODULE_KEY_MAP = {
+  // Flutter key       → controller key
+  'land_legal':        'landLegal',
+  'risk':              'riskManagement',
+  'project':           'projectManagement',
+  'cyber':             'cyberSecurity',
+  // These match already:
+  'taxation':          'taxation',
+  'licence':           'licence',
+  'loans':             'loans',
+  'restructure':       'restructure',
+  'fund':              'industrialConnect',   // Fund Raising fallback
+  'stratic':           'industrialConnect',   // Strategy fallback
+  // Also accept camelCase directly
+  'landLegal':         'landLegal',
+  'riskManagement':    'riskManagement',
+  'projectManagement': 'projectManagement',
+  'cyberSecurity':     'cyberSecurity',
+};
+
+function resolveModule(rawModule) {
+  return MODULE_KEY_MAP[rawModule] || rawModule;
+}
 function buildFounderContext(founderProfile) {
   if (!founderProfile || !founderProfile.isComplete) return '';
 
@@ -253,7 +276,8 @@ Return updated facts array (merge old + new, remove duplicates, max 10 facts):`;
 // ─── POST /api/chat/:module/message ──────────────────────────────────────────
 exports.sendMessage = async (req, res) => {
   try {
-    const { module } = req.params;
+    const rawModule = req.params.module;
+    const module    = resolveModule(rawModule);
     const { message } = req.body;
     const userId = req.user._id;
 
@@ -262,7 +286,8 @@ exports.sendMessage = async (req, res) => {
     }
 
     if (!MODULE_PROMPTS[module]) {
-      return res.status(400).json({ success: false, message: 'Invalid module.' });
+      // Unknown module — use a generic business advisor
+      console.warn(`Unknown module: ${rawModule} (resolved: ${module}), using generic advisor`);
     }
 
     // ── Load founder profile for personalized context ───────────────────────
@@ -340,8 +365,8 @@ exports.sendMessage = async (req, res) => {
 // ─── GET /api/chat/:module/history ───────────────────────────────────────────
 exports.getHistory = async (req, res) => {
   try {
-    const { module } = req.params;
-    const userId = req.user._id;
+    const module  = resolveModule(req.params.module);
+    const userId  = req.user._id;
 
     const chat = await Chat.findOne({ userId, module });
     if (!chat) {
@@ -361,8 +386,8 @@ exports.getHistory = async (req, res) => {
 // ─── DELETE /api/chat/:module/clear ──────────────────────────────────────────
 exports.clearChat = async (req, res) => {
   try {
-    const { module } = req.params;
-    const userId = req.user._id;
+    const module  = resolveModule(req.params.module);
+    const userId  = req.user._id;
 
     await Chat.findOneAndDelete({ userId, module });
     return res.status(200).json({ success: true, message: 'Chat cleared.' });
@@ -370,3 +395,7 @@ exports.clearChat = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+// ─── Export aliases ── chatRoutes.js may use either name ─────────────────────
+exports.getChatHistory = exports.getHistory;
+exports.clearHistory   = exports.clearChat;
+exports.sendChatMessage = exports.sendMessage;
