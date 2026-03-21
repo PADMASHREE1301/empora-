@@ -5,19 +5,21 @@ import 'package:empora/services/api_service.dart';
 class AuthProvider extends ChangeNotifier {
   UserModel? _user;
   bool _isLoading      = false;
-  bool _isInitialized  = false; // ← NEW: true once startup check is done
+  bool _isInitialized  = false;
+  bool _isApproved     = false; // ← stored independently of UserModel
   String? _error;
   bool _isLoggedIn     = false;
 
   UserModel? get user        => _user;
   bool get isLoading         => _isLoading;
-  bool get isInitialized     => _isInitialized; // ← RootRouter waits for this
+  bool get isInitialized     => _isInitialized;
   String? get error          => _error;
   bool get isLoggedIn        => _isLoggedIn;
   bool get isMember          => _user?.isMember  ?? false;
   bool get isFree            => !isMember && !isAdmin;
   bool get isAdmin           => _user?.isAdmin   ?? false;
-  bool get needsOnboarding   => _isLoggedIn && !isAdmin && (_user?.founderProfileComplete != true);
+  bool get isApproved        => _isApproved;
+  bool get needsOnboarding   => _isLoggedIn && !isAdmin && _isApproved && (_user?.founderProfileComplete != true);
 
   AuthProvider() {
     _checkLoginStatus();
@@ -39,7 +41,10 @@ class AuthProvider extends ChangeNotifier {
         _isLoggedIn = true;
         final rawUser = result['user'] ?? result['data'];
         if (rawUser is Map<String, dynamic>) {
-          _user = UserModel.fromJson(rawUser);
+          _user       = UserModel.fromJson(rawUser);
+          _isApproved = rawUser['isApproved'] as bool? ?? false;
+          // Admins are always considered approved
+          if (_user?.isAdmin == true) _isApproved = true;
         }
       } else {
         _isLoggedIn = false;
@@ -71,7 +76,9 @@ class AuthProvider extends ChangeNotifier {
 
       final rawUser = result['data']?['user'] ?? result['user'] ?? result['data'];
       if (rawUser is Map<String, dynamic>) {
-        _user = UserModel.fromJson(rawUser);
+        _user       = UserModel.fromJson(rawUser);
+        _isApproved = rawUser['isApproved'] as bool? ?? false;
+        if (_user?.isAdmin == true) _isApproved = true;
       }
 
       notifyListeners();
@@ -115,7 +122,9 @@ class AuthProvider extends ChangeNotifier {
 
       final rawUser = result['data']?['user'] ?? result['user'] ?? result['data'];
       if (rawUser is Map<String, dynamic>) {
-        _user = UserModel.fromJson(rawUser);
+        _user       = UserModel.fromJson(rawUser);
+        _isApproved = rawUser['isApproved'] as bool? ?? false;
+        if (_user?.isAdmin == true) _isApproved = true;
       }
 
       notifyListeners();
@@ -139,7 +148,9 @@ class AuthProvider extends ChangeNotifier {
       final Map<String, dynamic> result = await ApiService.getMe();
       final rawData = result['user'] ?? result['data'] ?? result;
       if (rawData is Map<String, dynamic>) {
-        _user = UserModel.fromJson(rawData);
+        _user       = UserModel.fromJson(rawData);
+        _isApproved = rawData['isApproved'] as bool? ?? false;
+        if (_user?.isAdmin == true) _isApproved = true;
         notifyListeners();
       }
     } catch (_) {}
@@ -184,6 +195,7 @@ class AuthProvider extends ChangeNotifier {
     }
     _user       = null;
     _isLoggedIn = false;
+    _isApproved = false;
     _error      = null;
     notifyListeners();
   }

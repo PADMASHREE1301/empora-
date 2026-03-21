@@ -43,9 +43,18 @@ const UserSchema = new mongoose.Schema(
     membershipEndDate:   { type: Date, default: null },
     profilePicture: { type: String, default: null },
     lastLogin:      { type: Date,   default: null  },
-    isActive:       { type: Boolean, default: true },
+    isActive:       { type: Boolean, default: true  },
+    isAdmin:        { type: Boolean, default: false },  // ← true for admin accounts
+    isMember:       { type: Boolean, default: false },  // ← true when membership active
+    isApproved:     { type: Boolean, default: false },  // ← admin must approve new users
+    membershipExpiry: { type: Date, default: null },    // ← used by expiry checker
+
+    // ── Top-level contact (used by approval screen) ───────────────────────────
+    phone:   { type: String, default: '' },
+    company: { type: String, default: '' },
 
     // ── Founder Profile ───────────────────────────────────────────────────────
+    founderProfileComplete: { type: Boolean, default: false }, // ← used by auth_provider
     founderProfile: {
       phone:         { type: String, default: null },
       city:          { type: String, default: null },
@@ -70,10 +79,9 @@ const UserSchema = new mongoose.Schema(
 
 UserSchema.methods.hasMembership = function () {
   return (
-    this.role === 'membership' &&
+    this.isMember === true &&
     this.membershipStatus === 'active' &&
-    this.membershipEndDate != null &&
-    this.membershipEndDate > new Date()
+    (this.membershipExpiry == null || this.membershipExpiry > new Date())
   );
 };
 

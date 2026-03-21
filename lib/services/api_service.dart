@@ -130,6 +130,18 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
     return _decode(res);
   }
 
+  static Future<Map<String, dynamic>> adminPost(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/admin$path'),
+      headers: await _headers(),
+      body: jsonEncode(body),
+    );
+    return _decode(res);
+  }
+
   static Future<Map<String, dynamic>> adminPatch(
     String path,
     Map<String, dynamic> body,

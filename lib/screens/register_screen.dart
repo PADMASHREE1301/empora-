@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:empora/theme/app_theme.dart';
 import 'package:empora/services/auth_provider.dart';
 import 'package:empora/screens/home_screen.dart';
+import 'package:empora/screens/pending_approval_screen.dart';
 import 'package:empora/screens/payment_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -75,7 +76,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       company: _companyController.text.trim(),
     );
     if (success && mounted) {
-      _showUpgradePopup();
+      // New user waits for admin approval before accessing the app
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const PendingApprovalScreen()),
+        (route) => false,
+      );
     }
     if (!success && mounted && auth.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(

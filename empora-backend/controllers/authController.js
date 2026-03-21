@@ -60,14 +60,14 @@ exports.register = async (req, res) => {
       role: assignedRole,
     });
 
-    // Send welcome notification
+    // Send pending-approval notification
     await Notification.create({
       userId:  user._id,
-      title:   '🎉 Welcome to EMPORA!',
-      message: 'Your account is ready. Complete your business profile to get personalized AI advice from all 10 advisors.',
+      title:   '⏳ Account Pending Approval',
+      message: 'Welcome to EMPORA! Your account is pending admin approval. You will be notified once approved.',
       type:    'welcome',
-      icon:    'celebration',
-      color:   '#1A3A6B',
+      icon:    'hourglass_top',
+      color:   '#F5A623',
     });
 
     const token = generateToken(user._id);
@@ -75,7 +75,7 @@ exports.register = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Account created successfully.',
+      message: 'Account created successfully. Awaiting admin approval.',
       token,
       user: {
         id:               user._id,
@@ -85,6 +85,7 @@ exports.register = async (req, res) => {
         membershipStatus: user.membershipStatus,
         isMember:         user.hasMembership(),
         isAdmin:          user.role === 'admin',
+        isApproved:       user.isApproved,        // ← always false for new users
         createdAt:        user.createdAt,
       },
     });
@@ -125,16 +126,18 @@ exports.login = async (req, res) => {
       message: 'Login successful.',
       token,
       user: {
-        id:                 user._id,
-        name:               user.name,
-        email:              user.email,
-        role:               user.role,
-        membershipStatus:   user.membershipStatus,
-        membershipEndDate:  user.membershipEndDate,
-        // ── NEW: convenience flags for Flutter ────────────────────────────────
-        isMember:           user.hasMembership(),
-        isAdmin:            user.role === 'admin',
-        lastLogin:          user.lastLogin,
+        id:                     user._id,
+        name:                   user.name,
+        email:                  user.email,
+        role:                   user.role,
+        membershipStatus:       user.membershipStatus,
+        membershipPlan:         user.membershipPlan,
+        membershipEndDate:      user.membershipEndDate,
+        isMember:               user.hasMembership(),
+        isAdmin:                user.role === 'admin',
+        isApproved:             user.isApproved,             // ← NEW
+        founderProfileComplete: user.founderProfileComplete, // ← NEW
+        lastLogin:              user.lastLogin,
       },
     });
   } catch (err) {
@@ -159,18 +162,23 @@ exports.getMe = async (req, res) => {
     return res.status(200).json({
       success: true,
       user: {
-        id:                 user._id,
-        name:               user.name,
-        email:              user.email,
-        role:               user.role,
-        membershipStatus:   user.membershipStatus,
-        membershipPlan:     user.membershipPlan,
-        membershipEndDate:  user.membershipEndDate,
-        isMember:           user.hasMembership(),
-        isAdmin:            user.role === 'admin',
-        profilePicture:     user.profilePicture,
-        createdAt:          user.createdAt,
-        founderProfile:     user.founderProfile,
+        id:                     user._id,
+        name:                   user.name,
+        email:                  user.email,
+        phone:                  user.phone,
+        company:                user.company,
+        role:                   user.role,
+        membershipStatus:       user.membershipStatus,
+        membershipPlan:         user.membershipPlan,
+        membershipEndDate:      user.membershipEndDate,
+        membershipExpiry:       user.membershipExpiry,
+        isMember:               user.hasMembership(),
+        isAdmin:                user.role === 'admin',
+        isApproved:             user.isApproved,             // ← NEW
+        founderProfileComplete: user.founderProfileComplete, // ← NEW
+        profilePicture:         user.profilePicture,
+        founderProfile:         user.founderProfile,
+        createdAt:              user.createdAt,
       },
     });
   } catch (err) {
@@ -282,6 +290,8 @@ exports.upgradeMembership = async (req, res) => {
         membershipPlan:       plan,
         membershipStartDate:  now,
         membershipEndDate:    endDate,
+        membershipExpiry:     endDate,  // ← used by expiry checker
+        isMember:             true,     // ← convenience flag
       },
       { new: true }
     );
@@ -307,8 +317,10 @@ exports.upgradeMembership = async (req, res) => {
         membershipStatus:  user.membershipStatus,
         membershipPlan:    user.membershipPlan,
         membershipEndDate: user.membershipEndDate,
-        isMember:          user.hasMembership(),
+        membershipExpiry:  user.membershipExpiry,
+        isMember:          true,
         isAdmin:           user.role === 'admin',
+        isApproved:        user.isApproved,   // ← NEW
       },
     });
   } catch (err) {
@@ -328,6 +340,7 @@ exports.saveFounderProfile = async (req, res) => {
     } = req.body;
 
     const update = {
+      founderProfileComplete:         true,            // ← top-level flag used by Flutter
       'founderProfile.phone':         phone         || null,
       'founderProfile.city':          city          || null,
       'founderProfile.state':         state         || null,
