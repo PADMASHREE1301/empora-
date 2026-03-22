@@ -12,7 +12,7 @@ class LandLegalScreen extends StatefulWidget {
 }
 
 class _LandLegalScreenState extends State<LandLegalScreen> {
-  static const _accent = Color(0xFF6C8EFF);
+  static const _accent = Color(0xFF8E44AD);
 
   String _type = 'Office Lease';
   late List<bool> _checked;
@@ -69,7 +69,7 @@ class _LandLegalScreenState extends State<LandLegalScreen> {
     MaterialPageRoute(builder: (_) => const ModuleChatScreen(
       module: 'landLegal', title: 'Property Advisor',
       subtitle: 'Land, Legal & Property Guidance',
-      icon: Icons.home_work_rounded, accentColor: Color(0xFF6C8EFF),
+      icon: Icons.home_work_rounded, accentColor: Color(0xFF8E44AD),
       welcomeMessage:
           'I\'m your personal property and legal advisor. I can help you evaluate whether '
           'it\'s the right time to buy, rent, or sell property — based on your actual financial situation.\n\n'
@@ -88,7 +88,7 @@ class _LandLegalScreenState extends State<LandLegalScreen> {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
-        backgroundColor: _accent, foregroundColor: Colors.white, elevation: 0,
+        backgroundColor: Color(0xFF8E44AD), foregroundColor: Colors.white, elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios, size: 18), onPressed: () => Navigator.pop(context)),
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Property Advisor', style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
@@ -155,5 +155,5 @@ class _LandLegalScreenState extends State<LandLegalScreen> {
         ]),
       ),
     );
-  }
+  } 
 }

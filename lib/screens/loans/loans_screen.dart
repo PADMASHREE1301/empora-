@@ -12,7 +12,7 @@ class LoansScreen extends StatefulWidget {
 }
 
 class _LoansScreenState extends State<LoansScreen> {
-  static const _accent = Color(0xFFFFB347);
+  static const _accent =  Color(0xFF00A8E8);
 
   final _amtCtrl    = TextEditingController();
   final _rateCtrl   = TextEditingController();
@@ -52,7 +52,7 @@ class _LoansScreenState extends State<LoansScreen> {
     MaterialPageRoute(builder: (_) => const ModuleChatScreen(
       module: 'loans', title: 'Loan Advisor',
       subtitle: 'Business Finance & Debt Management',
-      icon: Icons.account_balance_rounded, accentColor: Color(0xFFFFB347),
+      icon: Icons.account_balance_rounded, accentColor:  Color(0xFF00A8E8),
       welcomeMessage:
           'I\'m your personal banking and finance advisor. I\'ll help you understand your '
           'existing loan portfolio, analyze if you can take on more debt, and find the best '
@@ -71,7 +71,7 @@ class _LoansScreenState extends State<LoansScreen> {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
-        backgroundColor: _accent, foregroundColor: Colors.white, elevation: 0,
+        backgroundColor:  Color(0xFF00A8E8), foregroundColor: Colors.white, elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios, size: 18), onPressed: () => Navigator.pop(context)),
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Loan Advisor', style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
@@ -107,7 +107,7 @@ class _LoansScreenState extends State<LoansScreen> {
                   const SizedBox(width: 8),
                   ModuleResultTile('Total Interest',  _fmt(_totalInterest!), Colors.red),
                   const SizedBox(width: 8),
-                  ModuleResultTile('Total Payable',   _fmt(_totalAmt!),     Colors.deepPurple),
+                  ModuleResultTile('Total Payable',   _fmt(_totalAmt!),     const Color.fromARGB(255, 85, 58, 183)),
                 ]),
               ],
             ]),

@@ -12,7 +12,7 @@ class LicenceScreen extends StatefulWidget {
 }
 
 class _LicenceScreenState extends State<LicenceScreen> {
-  static const _accent = Color(0xFFFF6B9D);
+  static const _accent = Color(0xFFE67E22);
 
   String? _industry; String? _size;
   List<Map<String, String>>? _results;
@@ -65,7 +65,7 @@ class _LicenceScreenState extends State<LicenceScreen> {
     MaterialPageRoute(builder: (_) => const ModuleChatScreen(
       module: 'licence', title: 'Compliance Advisor',
       subtitle: 'Licences, Registrations & Compliance',
-      icon: Icons.verified_rounded, accentColor: Color(0xFFFF6B9D),
+      icon: Icons.verified_rounded, accentColor: Color(0xFFE67E22),
       welcomeMessage:
           'I\'m your compliance advisor. I\'ll help you get the right licences, '
           'stay compliant, and never miss a renewal deadline.\n\n'
