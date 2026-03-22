@@ -7,6 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:empora/services/auth_provider.dart';
 import 'package:empora/theme/app_theme.dart';
+import 'package:empora/screens/login_screen.dart';
+import 'package:empora/screens/home_screen.dart';
 
 class PendingApprovalScreen extends StatefulWidget {
   const PendingApprovalScreen({super.key});
@@ -51,14 +53,30 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen>
     if (_checking) return;
     setState(() => _checking = true);
     try {
-      await context.read<AuthProvider>().fetchProfile();
-      // If now approved, AuthProvider will update isApproved → RootRouter redirects
+      final auth = context.read<AuthProvider>();
+      await auth.fetchProfile();
+      // If admin approved, navigate to HomeScreen
+      if (mounted && auth.isApproved) {
+        _checkTimer?.cancel();
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+          (route) => false,
+        );
+        return;
+      }
     } catch (_) {}
     if (mounted) setState(() => _checking = false);
   }
 
   Future<void> _logout() async {
+    _checkTimer?.cancel(); // stop the auto-check timer
     await context.read<AuthProvider>().logout();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
   }
 
   @override
