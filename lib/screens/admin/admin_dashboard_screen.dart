@@ -39,9 +39,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0F),
-      appBar: AppBar(
+    return Theme(
+      data: AppTheme.adminTheme,
+      child: Scaffold(
+        backgroundColor: AppTheme.adminBg,
+        appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A0F),
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -110,7 +112,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           _PendingUsersTab(),
         ],
       ),
-    );
+    ),
+  );
   }
 }
 
