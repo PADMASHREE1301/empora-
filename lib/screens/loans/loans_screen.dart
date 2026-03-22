@@ -84,7 +84,7 @@ class _LoansScreenState extends State<LoansScreen> {
         child: Column(children: [
 
           ModuleCard(
-            icon: Icons.calculate_outlined, color: _accent,
+            icon: Icons.calculate_outlined, color:  Color(0xFF00A8E8),
             title: 'EMI Calculator',
             subtitle: 'Know your monthly repayment before borrowing',
             child: Column(children: [
@@ -96,14 +96,14 @@ class _LoansScreenState extends State<LoansScreen> {
               const SizedBox(height: 12),
               SizedBox(width: double.infinity,
                 child: ElevatedButton(onPressed: _calc,
-                  style: ElevatedButton.styleFrom(backgroundColor: _accent, foregroundColor: Colors.white,
+                  style: ElevatedButton.styleFrom(backgroundColor:  Color(0xFF00A8E8), foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   child: Text('Calculate EMI', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)))),
               if (_emi != null) ...[
                 const SizedBox(height: 16),
                 Row(children: [
-                  ModuleResultTile('Monthly EMI',     _fmt(_emi!),          _accent),
+                  ModuleResultTile('Monthly EMI',     _fmt(_emi!),           Color(0xFF00A8E8),),
                   const SizedBox(width: 8),
                   ModuleResultTile('Total Interest',  _fmt(_totalInterest!), Colors.red),
                   const SizedBox(width: 8),
