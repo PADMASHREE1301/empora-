@@ -102,6 +102,13 @@ exports.updateUser = async (req, res) => {
     if (role === 'membership' && membershipStatus === 'active') {
       user.membershipStartDate = new Date();
       user.membershipEndDate   = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      user.membershipExpiry    = user.membershipEndDate;
+      user.isMember            = true;  // ← ensure isMember flag is set
+    }
+
+    if (role === 'free') {
+      user.isMember         = false; // ← clear isMember when downgrading
+      user.membershipStatus = 'inactive';
     }
 
     await user.save({ validateBeforeSave: false });

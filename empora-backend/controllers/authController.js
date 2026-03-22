@@ -133,10 +133,10 @@ exports.login = async (req, res) => {
         membershipStatus:       user.membershipStatus,
         membershipPlan:         user.membershipPlan,
         membershipEndDate:      user.membershipEndDate,
-        isMember:               user.hasMembership(),
-        isAdmin:                user.role === 'admin',
-        isApproved:             user.isApproved,             // ← NEW
-        founderProfileComplete: user.founderProfileComplete, // ← NEW
+        isMember:               user.isMember === true || user.hasMembership(),
+        isAdmin:                user.role === 'admin' || user.isAdmin === true,
+        isApproved:             (user.role === 'admin' || user.isAdmin === true) ? true : (user.isApproved ?? false),
+        founderProfileComplete: user.founderProfileComplete,
         lastLogin:              user.lastLogin,
       },
     });
@@ -172,10 +172,10 @@ exports.getMe = async (req, res) => {
         membershipPlan:         user.membershipPlan,
         membershipEndDate:      user.membershipEndDate,
         membershipExpiry:       user.membershipExpiry,
-        isMember:               user.hasMembership(),
-        isAdmin:                user.role === 'admin',
-        isApproved:             user.isApproved,             // ← NEW
-        founderProfileComplete: user.founderProfileComplete, // ← NEW
+        isMember:               user.isMember === true || user.hasMembership(),
+        isAdmin:                user.role === 'admin' || user.isAdmin === true,
+        isApproved:             (user.role === 'admin' || user.isAdmin === true) ? true : (user.isApproved ?? false),
+        founderProfileComplete: user.founderProfileComplete,
         profilePicture:         user.profilePicture,
         founderProfile:         user.founderProfile,
         createdAt:              user.createdAt,

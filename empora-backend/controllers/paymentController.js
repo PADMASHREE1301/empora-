@@ -120,14 +120,27 @@ exports.verifyPayment = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user.id,
       {
-        role:               'membership',
-        membershipStatus:   'active',
-        membershipPlan:      plan,
-        membershipStartDate: now,
-        membershipEndDate:   endDate,
+        role:                'membership',
+        membershipStatus:    'active',
+        membershipPlan:       plan,
+        membershipStartDate:  now,
+        membershipEndDate:    endDate,
+        membershipExpiry:     endDate,  // ← expiry checker uses this
+        isMember:             true,     // ← CRITICAL: Flutter reads this for module access
       },
       { new: true }
     );
+
+    // Send membership activated notification
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      userId:  req.user.id,
+      title:   '🏆 Membership Activated!',
+      message: `Your ${plan} membership is now active. All 10 AI advisor modules are unlocked!`,
+      type:    'payment',
+      icon:    'workspace_premium',
+      color:   '#C9A030',
+    }).catch(() => {});
 
     return res.status(200).json({
       success: true,
@@ -140,6 +153,10 @@ exports.verifyPayment = async (req, res) => {
         membershipStatus:  user.membershipStatus,
         membershipPlan:    user.membershipPlan,
         membershipEndDate: user.membershipEndDate,
+        membershipExpiry:  user.membershipExpiry,
+        isMember:          true,          // ← Flutter auth_provider reads this
+        isApproved:        user.isApproved ?? true,
+        isAdmin:           user.role === 'admin' || user.isAdmin === true,
       },
     });
   } catch (err) {
@@ -176,12 +193,14 @@ exports.webhook = async (req, res) => {
           : new Date(now.getTime() +  30 * 24 * 60 * 60 * 1000);
 
         await User.findByIdAndUpdate(userId, {
-          role:               'membership',
-          membershipStatus:   'active',
-          membershipPlan:      plan,
-          membershipStartDate: now,
-          membershipEndDate:   endDate,
-          razorpayPaymentId:   payment.id,
+          role:                'membership',
+          membershipStatus:    'active',
+          membershipPlan:       plan,
+          membershipStartDate:  now,
+          membershipEndDate:    endDate,
+          membershipExpiry:     endDate,  // ← expiry checker uses this
+          isMember:             true,     // ← CRITICAL for Flutter module access
+          razorpayPaymentId:    payment.id,
         });
 
         console.log(`✅ Webhook: Membership activated for user ${userId} (${plan})`);

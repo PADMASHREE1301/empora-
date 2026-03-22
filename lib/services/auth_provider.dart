@@ -168,8 +168,12 @@ class AuthProvider extends ChangeNotifier {
 
       final rawUser = result['user'];
       if (rawUser is Map<String, dynamic>) {
-        _user = UserModel.fromJson(rawUser);
+        _user       = UserModel.fromJson(rawUser);
+        _isApproved = rawUser['isApproved'] as bool? ?? _isApproved;
       }
+
+      // Force-refresh from server so isMember, role, membershipStatus are all current
+      await fetchProfile();
 
       notifyListeners();
       return true;

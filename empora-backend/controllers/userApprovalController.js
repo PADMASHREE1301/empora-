@@ -6,7 +6,11 @@ const { createNotification } = require('./notificationController');
 // ─── GET /api/admin/pending-users ─────────────────────────────────────────────
 const getPendingUsers = async (req, res) => {
   try {
-    const users = await User.find({ isApproved: false, isAdmin: { $ne: true } })
+    const users = await User.find({
+      isApproved: false,
+      isAdmin:    { $ne: true },    // exclude isAdmin flag
+      role:       { $ne: 'admin' }, // exclude legacy admin role string
+    })
       .sort({ createdAt: -1 })
       .select('name email phone company createdAt role');
 
