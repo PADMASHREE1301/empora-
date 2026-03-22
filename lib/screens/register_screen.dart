@@ -3,9 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:empora/theme/app_theme.dart';
 import 'package:empora/services/auth_provider.dart';
-import 'package:empora/screens/home_screen.dart';
 import 'package:empora/screens/pending_approval_screen.dart';
-import 'package:empora/screens/payment_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -37,34 +35,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
 
-  void _showUpgradePopup() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _UpgradePopup(
-        onContinueFree: () {
-          Navigator.of(context).pop();
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-            (route) => false,
-          );
-        },
-        onUpgrade: () {
-          Navigator.of(context).pop();
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-            (route) => false,
-          ).then((_) {
-            // Navigate to PaymentScreen after HomeScreen loads
-          });
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const PaymentScreen()),
-          );
-        },
-      ),
-    );
-  }
-
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     final auth = context.read<AuthProvider>();
@@ -76,7 +46,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       company: _companyController.text.trim(),
     );
     if (success && mounted) {
-      // New user waits for admin approval before accessing the app
+      // New users go to pending approval — admin must approve before they can access the app
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const PendingApprovalScreen()),
         (route) => false,
@@ -132,7 +102,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
+                            color: Colors.white.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
@@ -156,7 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Text(
                       'Join Empora today',
                       style: GoogleFonts.inter(
-                        color: Colors.white.withOpacity(0.7),
+                        color: Colors.white.withValues(alpha: 0.7),
                         fontSize: 13,
                       ),
                     ),
@@ -172,7 +142,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.primary.withOpacity(0.1),
+                          color: AppTheme.primary.withValues(alpha: 0.1),
                           blurRadius: 30,
                           offset: const Offset(0, 10),
                         ),
@@ -434,7 +404,7 @@ class _UpgradePopupState extends State<_UpgradePopup> {
                 Text('Choose how you want to get started',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(
-                        color: Colors.white.withOpacity(0.8), fontSize: 13)),
+                        color: Colors.white.withValues(alpha: 0.8), fontSize: 13)),
               ]),
             ),
 
@@ -453,7 +423,7 @@ class _UpgradePopupState extends State<_UpgradePopup> {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: _selected == 'free'
-                              ? const Color(0xFF1A3A6B).withOpacity(0.06)
+                              ? const Color(0xFF1A3A6B).withValues(alpha: 0.06)
                               : Colors.white,
                           border: Border.all(
                             color: _selected == 'free'
@@ -501,7 +471,7 @@ class _UpgradePopupState extends State<_UpgradePopup> {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: _selected == 'monthly'
-                              ? const Color(0xFFF5A623).withOpacity(0.06)
+                              ? const Color(0xFFF5A623).withValues(alpha: 0.06)
                               : Colors.white,
                           border: Border.all(
                             color: _selected == 'monthly'
@@ -549,7 +519,7 @@ class _UpgradePopupState extends State<_UpgradePopup> {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: _selected == 'yearly'
-                          ? const Color(0xFF27AE60).withOpacity(0.06)
+                          ? const Color(0xFF27AE60).withValues(alpha: 0.06)
                           : Colors.white,
                       border: Border.all(
                         color: _selected == 'yearly'

@@ -1,3 +1,5 @@
+// lib/screens/login_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +7,7 @@ import 'package:empora/theme/app_theme.dart';
 import 'package:empora/services/auth_provider.dart';
 import 'package:empora/screens/register_screen.dart';
 import 'package:empora/screens/home_screen.dart';
+import 'package:empora/screens/pending_approval_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailCtrl    = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
-  bool _isAdminMode   = false; // activated by tapping E logo 3 times
+  bool _isAdminMode   = false;
   int  _logoTapCount  = 0;
 
   late AnimationController _animController;
@@ -51,13 +54,8 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // ── Tap E logo to enter admin mode ───────────────────────────────────────
   void _onLogoTap() {
-    if (_isAdminMode) {
-      // Already in admin mode — tap again to exit
-      _exitAdminMode();
-      return;
-    }
+    if (_isAdminMode) { _exitAdminMode(); return; }
     _logoTapCount++;
     if (_logoTapCount >= 3) {
       _logoTapCount = 0;
@@ -78,12 +76,23 @@ class _LoginScreenState extends State<LoginScreen>
     });
   }
 
-  // ── Route after login ─────────────────────────────────────────────────────
-  // RootRouter in main.dart handles the actual routing based on auth state.
-  // We just pop back to root and let RootRouter decide.
-  void _navigateAfterLogin() {
+  // ── Route after login — checks approval status ────────────────────────────
+  void _navigateAfterLogin(AuthProvider auth) {
+    late Widget destination;
+
+    if (auth.isAdmin) {
+      // Admins always go straight in
+      destination = const HomeScreen();
+    } else if (!auth.isApproved) {
+      // Registered but not yet approved by admin
+      destination = const PendingApprovalScreen();
+    } else {
+      // Fully approved regular user
+      destination = const HomeScreen();
+    }
+
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      MaterialPageRoute(builder: (_) => destination),
       (route) => false,
     );
   }
@@ -97,7 +106,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
     if (success && mounted) {
       if (_isAdminMode) {
-        // Wait for auth state to fully update
         await Future.delayed(const Duration(milliseconds: 400));
         if (!mounted) return;
         if (!auth.isAdmin) {
@@ -113,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen>
           return;
         }
       }
-      _navigateAfterLogin();
+      _navigateAfterLogin(auth);
     }
     if (!success && mounted && auth.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -127,13 +135,6 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  void _skip() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-      (route) => false,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -142,7 +143,6 @@ class _LoginScreenState extends State<LoginScreen>
       backgroundColor: AppTheme.surface,
       body: Stack(
         children: [
-          // Top gradient — turns dark in admin mode
           AnimatedContainer(
             duration: const Duration(milliseconds: 400),
             height: 280,
@@ -161,13 +161,10 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
-          // Decorative circle
           Positioned(
-            top: -30,
-            right: -30,
+            top: -30, right: -30,
             child: Container(
-              width: 160,
-              height: 160,
+              width: 160, height: 160,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withOpacity(0.06),
@@ -187,95 +184,72 @@ class _LoginScreenState extends State<LoginScreen>
                     children: [
                       const SizedBox(height: 20),
 
-                      // ── Top row ──────────────────────────────────────────
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // E logo — tap 3x to enter admin mode, tap again to exit
                           GestureDetector(
                             onTap: _onLogoTap,
-                            child: Row(
-                              children: [
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: _isAdminMode
-                                        ? Border.all(color: Colors.amberAccent, width: 2)
-                                        : null,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      'E',
-                                      style: GoogleFonts.montserrat(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w800,
-                                        color: _isAdminMode
-                                            ? const Color(0xFF0D1B2A)
-                                            : AppTheme.primary,
-                                      ),
+                            child: Row(children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                width: 42, height: 42,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: _isAdminMode
+                                      ? Border.all(color: Colors.amberAccent, width: 2)
+                                      : null,
+                                ),
+                                child: Center(
+                                  child: Text('E',
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 24, fontWeight: FontWeight.w800,
+                                      color: _isAdminMode
+                                          ? const Color(0xFF0D1B2A) : AppTheme.primary,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'EMPORA',
-                                  style: GoogleFonts.montserrat(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                    letterSpacing: 3,
-                                  ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text('EMPORA',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 20, fontWeight: FontWeight.w700,
+                                  color: Colors.white, letterSpacing: 3,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ]),
                           ),
 
-                          // Back button (admin mode only)
-                          if (_isAdminMode) GestureDetector(
-                            onTap: _exitAdminMode,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.white.withOpacity(0.3)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (_isAdminMode) ...[
-                                    const Icon(Icons.arrow_back_ios, color: Colors.white, size: 12),
-                                    const SizedBox(width: 4),
-                                    Text('Back',
-                                        style: GoogleFonts.inter(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w500,
-                                            fontSize: 14)),
-                                  ] else ...[
-                                    // Skip removed - login required
-                                    const SizedBox.shrink(),
-                                  ],
-                                ],
+                          if (_isAdminMode)
+                            GestureDetector(
+                              onTap: _exitAdminMode,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                                ),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  const Icon(Icons.arrow_back_ios, color: Colors.white, size: 12),
+                                  const SizedBox(width: 4),
+                                  Text('Back',
+                                    style: GoogleFonts.inter(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w500, fontSize: 14)),
+                                ]),
                               ),
                             ),
-                          ),
                         ],
                       ),
 
                       const SizedBox(height: 36),
 
-                      // Title
                       Text(
                         _isAdminMode ? 'Admin\nPortal 🔐' : 'Welcome\nBack 👋',
                         style: GoogleFonts.montserrat(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          height: 1.2,
+                          fontSize: 32, fontWeight: FontWeight.w800,
+                          color: Colors.white, height: 1.2,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -284,14 +258,11 @@ class _LoginScreenState extends State<LoginScreen>
                             ? 'Sign in with your admin credentials'
                             : 'Sign in to your Empora account',
                         style: GoogleFonts.inter(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 14,
-                        ),
+                          color: Colors.white.withOpacity(0.7), fontSize: 14),
                       ),
 
                       const SizedBox(height: 44),
 
-                      // ── Form card ─────────────────────────────────────────
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
@@ -300,8 +271,7 @@ class _LoginScreenState extends State<LoginScreen>
                           boxShadow: [
                             BoxShadow(
                               color: AppTheme.primary.withOpacity(0.12),
-                              blurRadius: 30,
-                              offset: const Offset(0, 10),
+                              blurRadius: 30, offset: const Offset(0, 10),
                             ),
                           ],
                         ),
@@ -310,12 +280,10 @@ class _LoginScreenState extends State<LoginScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Admin badge
                               if (_isAdminMode) ...[
                                 Container(
                                   width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 10, horizontal: 14),
+                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF0D1B2A).withOpacity(0.07),
                                     borderRadius: BorderRadius.circular(10),
@@ -327,17 +295,15 @@ class _LoginScreenState extends State<LoginScreen>
                                         color: Color(0xFF0D1B2A), size: 18),
                                     const SizedBox(width: 8),
                                     Text('Admin Access',
-                                        style: GoogleFonts.inter(
-                                          color: const Color(0xFF0D1B2A),
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                        )),
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFF0D1B2A),
+                                        fontWeight: FontWeight.w600, fontSize: 13,
+                                      )),
                                   ]),
                                 ),
                                 const SizedBox(height: 20),
                               ],
 
-                              // Email
                               _Label('Email Address'),
                               const SizedBox(height: 8),
                               TextFormField(
@@ -356,7 +322,6 @@ class _LoginScreenState extends State<LoginScreen>
                               ),
                               const SizedBox(height: 20),
 
-                              // Password
                               _Label('Password'),
                               const SizedBox(height: 8),
                               TextFormField(
@@ -387,44 +352,36 @@ class _LoginScreenState extends State<LoginScreen>
                               const SizedBox(height: 12),
                               Align(
                                 alignment: Alignment.centerRight,
-                                child: Text(
-                                  'Forgot Password?',
+                                child: Text('Forgot Password?',
                                   style: GoogleFonts.inter(
                                     color: AppTheme.primaryLight,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500, fontSize: 13,
                                   ),
                                 ),
                               ),
 
                               const SizedBox(height: 24),
 
-                              // Sign In button
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton(
                                   onPressed: auth.isLoading ? null : _login,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: _isAdminMode
-                                        ? const Color(0xFF0D1B2A)
-                                        : AppTheme.primary,
+                                        ? const Color(0xFF0D1B2A) : AppTheme.primary,
                                     padding: const EdgeInsets.symmetric(vertical: 16),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
+                                      borderRadius: BorderRadius.circular(14)),
                                   ),
                                   child: auth.isLoading
                                       ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
+                                          height: 20, width: 20,
                                           child: CircularProgressIndicator(
-                                              color: Colors.white, strokeWidth: 2),
-                                        )
+                                              color: Colors.white, strokeWidth: 2))
                                       : Text(
                                           _isAdminMode ? 'Sign In as Admin' : 'Sign In',
                                           style: GoogleFonts.inter(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16, fontWeight: FontWeight.w600,
                                             color: Colors.white,
                                           ),
                                         ),
@@ -437,48 +394,23 @@ class _LoginScreenState extends State<LoginScreen>
 
                       const SizedBox(height: 28),
 
-                      // Register link — hidden in admin mode
                       if (!_isAdminMode)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              "Don't have an account? ",
-                              style: GoogleFonts.inter(color: AppTheme.textSecondary),
-                            ),
+                            Text("Don't have an account? ",
+                              style: GoogleFonts.inter(color: AppTheme.textSecondary)),
                             GestureDetector(
                               onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                    builder: (_) => const RegisterScreen()),
-                              ),
-                              child: Text(
-                                'Register',
+                                MaterialPageRoute(builder: (_) => const RegisterScreen())),
+                              child: Text('Register',
                                 style: GoogleFonts.inter(
                                   color: AppTheme.primaryLight,
                                   fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                                )),
                             ),
                           ],
                         ),
-
-                      // Skip button — only shown in normal mode
-                      if (!_isAdminMode) ...[
-                        const SizedBox(height: 12),
-                        Center(
-                          child: GestureDetector(
-                            onTap: _skip,
-                            child: Text(
-                              'Skip for now',
-                              style: GoogleFonts.inter(
-                                color: AppTheme.textSecondary,
-                                fontSize: 13,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
 
                       const SizedBox(height: 32),
                     ],
@@ -496,16 +428,10 @@ class _LoginScreenState extends State<LoginScreen>
 class _Label extends StatelessWidget {
   final String text;
   const _Label(this.text);
-
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
+    return Text(text,
       style: GoogleFonts.inter(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: AppTheme.textPrimary,
-      ),
-    );
+        fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary));
   }
 }
