@@ -341,6 +341,7 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
       child: Form(
         key: _formKey,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
           _sectionCard(
             title: 'Company Details',
             icon: Icons.business_outlined,
@@ -350,7 +351,7 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
               TextFormField(
                 controller: _companyCtrl,
                 decoration: const InputDecoration(
-                  hintText: 'e.g. TechVenture Inc.',
+                  hintText: 'e.g. TechVenture Pvt Ltd',
                   prefixIcon:
                       Icon(Icons.apartment, color: AppTheme.textSecondary),
                 ),
@@ -396,7 +397,7 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
                 controller: _fundingGoalCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  hintText: 'e.g. 2000000',
+                  hintText: 'e.g. 2000000 (USD 2M total needed)',
                   prefixIcon: Icon(Icons.attach_money,
                       color: AppTheme.textSecondary),
                 ),
@@ -409,7 +410,7 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
                 controller: _askCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  hintText: 'e.g. 500000',
+                  hintText: 'e.g. 500000 (USD 500K this round)',
                   prefixIcon: Icon(Icons.request_quote_outlined,
                       color: AppTheme.textSecondary),
                 ),
@@ -427,7 +428,7 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
                 controller: _businessIdeaCtrl,
                 maxLines: 4,
                 decoration: const InputDecoration(
-                  hintText: 'Describe your startup idea in 2–3 sentences...',
+                  hintText: 'What you do, for whom, and why it matters — 2-3 sentences',
                   alignLabelWithHint: true,
                 ),
               ),
@@ -645,7 +646,7 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
     final sections = [
       _PitchSection(
         number: '01', title: 'Problem Statement',
-        hint: 'What pain point does your startup solve?',
+        hint: 'What problem do you solve? Who faces it and how often?',
         controller: _problemCtrl, isDone: _data.isProblemDone,
         onMark: (done) {
           if (_problemCtrl.text.trim().isNotEmpty) {
@@ -658,7 +659,7 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
       ),
       _PitchSection(
         number: '02', title: 'Solution',
-        hint: 'How does your product/service solve the problem?',
+        hint: 'How does your product solve the problem? What makes it better?',
         controller: _solutionCtrl, isDone: _data.isSolutionDone,
         onMark: (done) {
           if (_solutionCtrl.text.trim().isNotEmpty) {
@@ -671,7 +672,7 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
       ),
       _PitchSection(
         number: '03', title: 'Market Size',
-        hint: 'TAM, SAM, SOM — quantify your market opportunity',
+        hint: 'TAM, SAM, SOM — e.g. TAM ₹15,000Cr, SAM ₹3,200Cr, SOM ₹180Cr',
         controller: _marketCtrl, isDone: _data.isMarketDone,
         onMark: (done) {
           if (_marketCtrl.text.trim().isNotEmpty) {
@@ -684,7 +685,7 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
       ),
       _PitchSection(
         number: '04', title: 'Business Model',
-        hint: 'How do you make money? Revenue streams, pricing, etc.',
+        hint: 'Pricing model, revenue streams — e.g. ₹999/month SaaS, 120 customers, MRR ₹1.2L',
         controller: _revenueModelCtrl, isDone: _data.isModelDone,
         onMark: (done) {
           if (_revenueModelCtrl.text.trim().isNotEmpty) {
@@ -697,14 +698,14 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
       ),
       _PitchSection(
         number: '05', title: 'Traction',
-        hint: 'Key metrics, customers, revenue, partnerships to date',
+        hint: 'MRR, customers, growth rate — e.g. ₹1.2L MRR, 120 customers, 22% MoM',
         controller: TextEditingController(),
         isDone: _data.isTractionDone,
         onMark: (done) => setState(() => _data.isTractionDone = done),
       ),
       _PitchSection(
         number: '06', title: 'Team',
-        hint: 'Founders, key hires, advisors, relevant experience',
+        hint: 'Name, role, past experience — e.g. CEO: Ravi, 8 yrs fintech (ex-Razorpay)',
         controller: _teamCtrl, isDone: _data.isTeamDone,
         onMark: (done) {
           if (_teamCtrl.text.trim().isNotEmpty) {
@@ -717,14 +718,14 @@ class _PitchDeckScreenState extends State<PitchDeckScreen>
       ),
       _PitchSection(
         number: '07', title: 'Financials',
-        hint: '3-year projections, burn rate, unit economics',
+        hint: 'Burn rate, runway, projections — e.g. ₹4L/month burn, 14 months runway',
         controller: TextEditingController(),
         isDone: _data.isFinancialsDone,
         onMark: (done) => setState(() => _data.isFinancialsDone = done),
       ),
       _PitchSection(
         number: '08', title: 'The Ask',
-        hint: 'How much are you raising? What milestones will it fund?',
+        hint: 'Amount raising, equity %, use of funds — e.g. ₹1.5Cr at 10% equity',
         controller: _askCtrl, isDone: _data.isAskDone,
         onMark: (done) {
           if (_askCtrl.text.trim().isNotEmpty) {

@@ -250,7 +250,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
               child: Container(
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.arrow_back_ios_new,
@@ -274,7 +274,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
                         width: 120, height: 120,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.05),
+                          color: Colors.white.withValues(alpha: 0.05),
                         ),
                       ),
                     ),
@@ -289,7 +289,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
                               Container(
                                 width: 48, height: 48,
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.15),
+                                  color: Colors.white.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(13),
                                 ),
                                 child: const Icon(Icons.show_chart,
@@ -550,12 +550,12 @@ class _ValuationScreenState extends State<ValuationScreen> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: _isFileSaved
-              ? AppTheme.success.withOpacity(0.4)
-              : const Color(0xFF2756A8).withOpacity(0.15),
+              ? AppTheme.success.withValues(alpha: 0.4)
+              : const Color(0xFF2756A8).withValues(alpha: 0.15),
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2756A8).withOpacity(0.06),
+            color: const Color(0xFF2756A8).withValues(alpha: 0.06),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -566,7 +566,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-              color: const Color(0xFF2756A8).withOpacity(0.1),
+              color: const Color(0xFF2756A8).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.upload_file,
@@ -594,9 +594,9 @@ class _ValuationScreenState extends State<ValuationScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF2756A8).withOpacity(0.05),
+              color: const Color(0xFF2756A8).withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF2756A8).withOpacity(0.15)),
+              border: Border.all(color: const Color(0xFF2756A8).withValues(alpha: 0.15)),
             ),
             child: Row(children: [
               const Icon(Icons.description_outlined,
@@ -644,7 +644,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
               ),
               child: Column(children: [
                 Icon(Icons.cloud_upload_outlined,
-                    color: AppTheme.textSecondary.withOpacity(0.5), size: 36),
+                    color: AppTheme.textSecondary.withValues(alpha: 0.5), size: 36),
                 const SizedBox(height: 8),
                 Text('Tap to select file',
                     style: GoogleFonts.inter(
@@ -652,7 +652,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
                 Text('Word or Excel document',
                     style: GoogleFonts.inter(
                         fontSize: 11,
-                        color: AppTheme.textSecondary.withOpacity(0.6))),
+                        color: AppTheme.textSecondary.withValues(alpha: 0.6))),
               ]),
             ),
           ),
@@ -724,7 +724,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2756A8).withOpacity(0.3),
+            color: const Color(0xFF2756A8).withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -747,7 +747,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
         const SizedBox(height: 4),
         Text('Using ${_multiple}x Revenue Multiple',
             style: GoogleFonts.inter(
-                color: Colors.white.withOpacity(0.6), fontSize: 12)),
+                color: Colors.white.withValues(alpha: 0.6), fontSize: 12)),
         const SizedBox(height: 20),
         const Divider(color: Colors.white24, height: 1),
         const SizedBox(height: 16),
@@ -773,7 +773,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.07),
+            color: color.withValues(alpha: 0.07),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -784,7 +784,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 18),
@@ -814,7 +814,7 @@ class _ValuationScreenState extends State<ValuationScreen> {
         Container(
           width: 36, height: 36,
           decoration: BoxDecoration(
-            color: const Color(0xFF2756A8).withOpacity(0.1),
+            color: const Color(0xFF2756A8).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: const Icon(Icons.info_outline, color: Color(0xFF2756A8), size: 18),
@@ -885,7 +885,7 @@ class _ResultChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.12),
+          color: Colors.white.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(children: [
@@ -901,4 +901,5 @@ class _ResultChip extends StatelessWidget {
       ),
     );
   }
+
 }

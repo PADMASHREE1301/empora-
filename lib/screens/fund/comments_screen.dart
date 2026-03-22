@@ -169,7 +169,7 @@ class _CommentsScreenState extends State<CommentsScreen>
               child: Container(
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.arrow_back_ios_new,
@@ -227,7 +227,7 @@ class _CommentsScreenState extends State<CommentsScreen>
                 Container(
                   width: 48, height: 48,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(13),
                   ),
                   child: const Icon(Icons.forum_outlined,
@@ -266,7 +266,7 @@ class _CommentsScreenState extends State<CommentsScreen>
         _infoCard(
           title: 'Business Background',
           icon: Icons.history_edu_outlined,
-          hint: "Tell us about your company's history, what inspired you to start it, and how long you've been operating...",
+          hint: 'Company history, founding date, key milestones, current stage',
           controller: _bgCtrl,
           required: true,
         ),
@@ -281,28 +281,28 @@ class _CommentsScreenState extends State<CommentsScreen>
         _infoCard(
           title: 'Competitor Details',
           icon: Icons.compare_arrows,
-          hint: 'Who are your main competitors? What is your competitive advantage or differentiation?',
+          hint: 'Top 3-5 competitors + your specific advantage over each',
           controller: _competitorCtrl,
         ),
         const SizedBox(height: 12),
         _infoCard(
           title: 'Risk Factors',
           icon: Icons.warning_amber_outlined,
-          hint: 'What are the key risks to your business? Regulatory, market, operational, technical...',
+          hint: 'Top 3-5 risks + your mitigation plan for each',
           controller: _riskCtrl,
         ),
         const SizedBox(height: 12),
         _infoCard(
           title: 'Future Plan',
           icon: Icons.rocket_launch_outlined,
-          hint: '12-month milestones, product roadmap, expansion plans, exit strategy...',
+          hint: 'Revenue targets, expansion plans, exit strategy in 3-5 years',
           controller: _futureCtrl,
         ),
         const SizedBox(height: 12),
         _infoCard(
           title: 'Use of Funds',
           icon: Icons.account_balance_wallet_outlined,
-          hint: 'How will the raised capital be deployed? e.g. 40% product, 30% marketing, 20% team, 10% ops',
+          hint: 'e.g. 40% product, 30% sales, 20% ops, 10% working capital',
           controller: _useOfFundsCtrl,
           required: true,
         ),
@@ -310,7 +310,7 @@ class _CommentsScreenState extends State<CommentsScreen>
         _infoCard(
           title: 'Current Traction',
           icon: Icons.trending_up,
-          hint: 'Revenue, customers, MoM growth, partnerships, key metrics that show momentum...',
+          hint: 'MRR, customers, MoM growth %, key pilots, partnerships',
           controller: _tractionCtrl,
         ),
         const SizedBox(height: 20),
@@ -404,7 +404,7 @@ class _CommentsScreenState extends State<CommentsScreen>
                   children: [
                     Icon(Icons.forum_outlined,
                         size: 48,
-                        color: AppTheme.textSecondary.withOpacity(0.3)),
+                        color: AppTheme.textSecondary.withValues(alpha: 0.3)),
                     const SizedBox(height: 12),
                     Text('No comments yet',
                         style: GoogleFonts.inter(
@@ -412,7 +412,7 @@ class _CommentsScreenState extends State<CommentsScreen>
                     Text('Add your notes or investor feedback below',
                         style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: AppTheme.textSecondary.withOpacity(0.7))),
+                            color: AppTheme.textSecondary.withValues(alpha: 0.7))),
                   ],
                 ),
               )
@@ -430,7 +430,7 @@ class _CommentsScreenState extends State<CommentsScreen>
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -4),
             ),
@@ -495,7 +495,7 @@ class _CommentsScreenState extends State<CommentsScreen>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0D6E8A).withOpacity(0.06),
+            color: const Color(0xFF0D6E8A).withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -523,7 +523,7 @@ class _CommentsScreenState extends State<CommentsScreen>
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.inter(
-                color: AppTheme.textSecondary.withOpacity(0.65),
+                color: AppTheme.textSecondary.withValues(alpha: 0.65),
                 fontSize: 12, height: 1.5),
             filled: true,
             fillColor: AppTheme.surface,
@@ -574,7 +574,7 @@ class _StageBadge extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
+          color: Colors.white.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white24),
         ),
@@ -646,7 +646,7 @@ class _FounderCard extends StatelessWidget {
         border: Border.all(color: AppTheme.divider),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0D6E8A).withOpacity(0.05),
+            color: const Color(0xFF0D6E8A).withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -656,7 +656,7 @@ class _FounderCard extends StatelessWidget {
         Row(children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: const Color(0xFF0D6E8A).withOpacity(0.1),
+            backgroundColor: const Color(0xFF0D6E8A).withValues(alpha: 0.1),
             child: Text(
               founder.name.isNotEmpty ? founder.name[0].toUpperCase() : '?',
               style: GoogleFonts.montserrat(
@@ -678,7 +678,7 @@ class _FounderCard extends StatelessWidget {
               child: Container(
                 width: 28, height: 28,
                 decoration: BoxDecoration(
-                  color: AppTheme.error.withOpacity(0.1),
+                  color: AppTheme.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.remove, color: AppTheme.error, size: 16),
@@ -734,7 +734,7 @@ class _FounderCard extends StatelessWidget {
           hintText: hint,
           hintStyle: GoogleFonts.inter(
               fontSize: 12,
-              color: AppTheme.textSecondary.withOpacity(0.7)),
+              color: AppTheme.textSecondary.withValues(alpha: 0.7)),
           filled: true,
           fillColor: AppTheme.surface,
           isDense: true,
@@ -772,19 +772,19 @@ class _CommentCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isOwn
-            ? const Color(0xFF0D6E8A).withOpacity(0.06)
+            ? const Color(0xFF0D6E8A).withValues(alpha: 0.06)
             : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isOwn
-              ? const Color(0xFF0D6E8A).withOpacity(0.2)
+              ? const Color(0xFF0D6E8A).withValues(alpha: 0.2)
               : AppTheme.divider,
         ),
         boxShadow: isOwn
             ? []
             : [
                 BoxShadow(
-                  color: const Color(0xFF0D6E8A).withOpacity(0.05),
+                  color: const Color(0xFF0D6E8A).withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
@@ -794,7 +794,7 @@ class _CommentCard extends StatelessWidget {
         CircleAvatar(
           radius: 18,
           backgroundColor: isOwn
-              ? const Color(0xFF0D6E8A).withOpacity(0.15)
+              ? const Color(0xFF0D6E8A).withValues(alpha: 0.15)
               : const Color(0xFF0D6E8A),
           child: Text(comment.avatar,
               style: GoogleFonts.montserrat(
