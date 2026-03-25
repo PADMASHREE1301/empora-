@@ -400,4 +400,5 @@ exports.getFounderProfile = async (req, res) => {
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
+  
 };
