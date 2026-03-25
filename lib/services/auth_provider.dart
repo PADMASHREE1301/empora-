@@ -1,9 +1,7 @@
 // lib/services/auth_provider.dart
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:empora/services/api_service.dart';
 
 // ─── User model ───────────────────────────────────────────────────────────────
 class AppUser {
@@ -14,12 +12,16 @@ class AppUser {
   final String  membershipStatus;
   final String? membershipPlan;
   final String? membershipEndDate;
+  final String? membershipExpiry;
   final bool    isMember;
   final bool    isAdmin;
   final bool    isApproved;
   final bool    isActive;
   final bool    founderProfileComplete;
   final String? profilePicture;
+  final String? phone;
+  final String? company;
+  final Map<String, dynamic>? founderProfile;
 
   const AppUser({
     required this.id,
@@ -29,84 +31,75 @@ class AppUser {
     required this.membershipStatus,
     this.membershipPlan,
     this.membershipEndDate,
+    this.membershipExpiry,
     required this.isMember,
     required this.isAdmin,
     required this.isApproved,
     required this.isActive,
     required this.founderProfileComplete,
     this.profilePicture,
+    this.phone,
+    this.company,
+    this.founderProfile,
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
+    // Support both 'id' and '_id' from different endpoints
+    final rawId = json['id'] ?? json['_id'] ?? '';
     return AppUser(
-      id:                     (json['id'] ?? json['_id'] ?? '').toString(),
+      id:                     rawId.toString(),
       name:                   json['name']                   as String? ?? '',
       email:                  json['email']                  as String? ?? '',
       role:                   json['role']                   as String? ?? 'free',
       membershipStatus:       json['membershipStatus']       as String? ?? 'inactive',
       membershipPlan:         json['membershipPlan']         as String?,
       membershipEndDate:      json['membershipEndDate']      as String?,
+      membershipExpiry:       json['membershipExpiry']       as String?,
       isMember:               json['isMember']               as bool?   ?? false,
       isAdmin:                json['isAdmin']                as bool?   ?? false,
       isApproved:             json['isApproved']             as bool?   ?? false,
       isActive:               json['isActive']               as bool?   ?? true,
       founderProfileComplete: json['founderProfileComplete'] as bool?   ?? false,
       profilePicture:         json['profilePicture']         as String?,
+      phone:                  json['phone']                  as String?,
+      company:                json['company']                as String?,
+      founderProfile:         json['founderProfile']         as Map<String, dynamic>?,
     );
   }
 }
 
 // ─── AuthProvider ─────────────────────────────────────────────────────────────
 class AuthProvider extends ChangeNotifier {
-  // Change this to your actual backend URL.
-  // For Android emulator use 10.0.2.2, for iOS simulator use 127.0.0.1
-  static const String _baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:5000/api',
-  );
-  static const String _tokenKey = 'auth_token';
-
   AppUser? _user;
-  String?  _token;
   bool     _isLoading     = false;
-  bool     _isInitialized = false; // ← true once the startup token-check is done
+  bool     _isInitialized = false;
   String?  _error;
-  String?  _errorCode;             // ← 'PENDING_APPROVAL' | 'ACCOUNT_DEACTIVATED'
+  String?  _errorCode;
 
   // ── Public getters ────────────────────────────────────────────────────────
-
   AppUser? get user          => _user;
-  String?  get token         => _token;
   bool     get isLoading     => _isLoading;
-  bool     get isInitialized => _isInitialized; // used by RootRouter in main.dart
+  bool     get isInitialized => _isInitialized;
   String?  get error         => _error;
-  String?  get errorCode     => _errorCode;     // used by login_screen.dart
+  String?  get errorCode     => _errorCode;
 
-  bool get isLoggedIn  => _user != null && _token != null;
+  bool get isLoggedIn  => _user != null;
   bool get isAdmin     => _user?.isAdmin    ?? false;
   bool get isApproved  => _user?.isApproved ?? false;
   bool get isMember    => _user?.isMember   ?? false;
 
-  /// True when the user is logged in, approved, but has NOT yet completed
-  /// the founder profile onboarding flow.
-  /// Admins never need onboarding.
+  /// True when the user is logged in + approved but has NOT completed
+  /// the founder profile onboarding. Admins never need onboarding.
   bool get needsOnboarding {
-    if (_user == null)   return false;
-    if (isAdmin)         return false;
-    if (!isApproved)     return false;
+    if (_user == null) return false;
+    if (isAdmin)       return false;
+    if (!isApproved)   return false;
     return !(_user!.founderProfileComplete);
   }
 
   // ── Internal helpers ──────────────────────────────────────────────────────
-
   void _setLoading(bool v) {
     _isLoading = v;
-    notifyListeners();
-  }
-
-  void _setError(String? msg, {String? code}) {
-    _error     = msg;
-    _errorCode = code;
     notifyListeners();
   }
 
@@ -115,47 +108,17 @@ class AuthProvider extends ChangeNotifier {
     _errorCode = null;
   }
 
-  Map<String, String> get _authHeaders => {
-    'Content-Type': 'application/json',
-    if (_token != null) 'Authorization': 'Bearer $_token',
-  };
-
-  // ── Token persistence ─────────────────────────────────────────────────────
-
-  Future<void> _saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
-  }
-
-  Future<void> _clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-  }
-
-  Future<String?> _loadToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
-  }
-
-  // ── App startup: restore saved session ───────────────────────────────────
-  //
-  // Call this once from EmporaApp (via ChangeNotifierProvider create callback
-  // or from initState of AppEntry). It checks for a saved token, fetches the
-  // profile if one exists, then sets isInitialized = true so RootRouter knows
-  // it's safe to decide which screen to show.
-
+  // ── App startup — restore saved session ──────────────────────────────────
   Future<void> init() async {
-    final saved = await _loadToken();
-    if (saved != null) {
-      _token = saved;
-      await fetchProfile(); // populates _user
+    final loggedIn = await ApiService.isLoggedIn();
+    if (loggedIn) {
+      await fetchProfile();
     }
     _isInitialized = true;
     notifyListeners();
   }
 
   // ── Register ──────────────────────────────────────────────────────────────
-
   Future<bool> register({
     required String name,
     required String email,
@@ -167,137 +130,123 @@ class AuthProvider extends ChangeNotifier {
     _clearError();
 
     try {
-      final body = {
-        'name':     name,
-        'email':    email,
-        'password': password,
-        if (phone   != null && phone.isNotEmpty)   'phone':   phone,
-        if (company != null && company.isNotEmpty) 'company': company,
-      };
-
-      final res = await http.post(
-        Uri.parse('$_baseUrl/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
+      final data = await ApiService.register(
+        name:     name,
+        email:    email,
+        password: password,
+        phone:    phone,
+        company:  company,
       );
 
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-
-      if (res.statusCode == 201 && data['success'] == true) {
-        _token = data['token'] as String?;
-        if (_token != null) await _saveToken(_token!);
+      if (data['success'] == true) {
         if (data['user'] != null) {
           _user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
         }
         _setLoading(false);
         return true;
-      } else {
-        _setError(data['message'] as String? ?? 'Registration failed.');
-        _setLoading(false);
-        return false;
       }
+
+      _error     = data['message'] as String? ?? 'Registration failed.';
+      _errorCode = data['code']    as String?;
+      _setLoading(false);
+      return false;
+    } on ApiException catch (e) {
+      _error     = e.message;
+      _errorCode = null;
+      _setLoading(false);
+      return false;
     } catch (_) {
-      _setError('Network error. Please check your connection.');
+      _error = 'Network error. Please check your connection.';
       _setLoading(false);
       return false;
     }
   }
 
   // ── Login ─────────────────────────────────────────────────────────────────
-
   Future<bool> login(String email, String password) async {
     _setLoading(true);
     _clearError();
 
     try {
-      final res = await http.post(
-        Uri.parse('$_baseUrl/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
-      );
+      final data = await ApiService.login(email: email, password: password);
 
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-
-      if (res.statusCode == 200 && data['success'] == true) {
-        _token = data['token'] as String?;
-        if (_token != null) await _saveToken(_token!);
+      if (data['success'] == true) {
+        // Token already saved by ApiService.login()
         if (data['user'] != null) {
           _user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
         }
         _setLoading(false);
         return true;
-      } else {
-        // Capture backend error code for login_screen.dart to handle
-        _setError(
-          data['message'] as String? ?? 'Login failed.',
-          code: data['code'] as String?,
-        );
-        _setLoading(false);
-        return false;
       }
+
+      _error     = data['message'] as String? ?? 'Login failed.';
+      _errorCode = data['code']    as String?;
+      _setLoading(false);
+      return false;
+    } on ApiException catch (e) {
+      _error = e.message;
+      // Parse error code from ApiException message for PENDING_APPROVAL etc.
+      if (e.statusCode == 403) {
+        if (e.message.contains('pending') || e.message.contains('approval')) {
+          _errorCode = 'PENDING_APPROVAL';
+        } else if (e.message.contains('deactivated')) {
+          _errorCode = 'ACCOUNT_DEACTIVATED';
+        }
+      }
+      _setLoading(false);
+      return false;
     } catch (_) {
-      _setError('Network error. Please check your connection.');
+      _error = 'Network error. Please check your connection.';
       _setLoading(false);
       return false;
     }
   }
 
   // ── Logout ────────────────────────────────────────────────────────────────
-
   Future<void> logout() async {
     try {
-      await http.post(
-        Uri.parse('$_baseUrl/auth/logout'),
-        headers: _authHeaders,
-      );
+      await ApiService.logout();
     } catch (_) {
-      // Ignore — clear local state regardless
+      // Clear locally even if the server call fails
+      await ApiService.clearToken();
     }
-    _user  = null;
-    _token = null;
-    _clearError();
-    await _clearToken();
+    _user      = null;
+    _error     = null;
+    _errorCode = null;
     notifyListeners();
   }
 
   // ── Fetch current profile from /api/auth/me ───────────────────────────────
-
   Future<void> fetchProfile() async {
-    if (_token == null) return;
+    final loggedIn = await ApiService.isLoggedIn();
+    if (!loggedIn) return;
+
     try {
-      final res = await http.get(
-        Uri.parse('$_baseUrl/auth/me'),
-        headers: _authHeaders,
-      );
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        if (data['user'] != null) {
-          _user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
-          notifyListeners();
-        }
-      } else if (res.statusCode == 401) {
-        // Token expired or invalid — clear session silently
-        _user  = null;
-        _token = null;
-        await _clearToken();
+      final data = await ApiService.getMe();
+      if (data['user'] != null) {
+        _user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
         notifyListeners();
       }
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        // Token expired — clear session silently
+        _user = null;
+        await ApiService.clearToken();
+        notifyListeners();
+      }
+      // Other errors: keep existing state, don't crash
     } catch (_) {
-      // Network error on startup — keep existing state, don't crash
+      // Network error on startup — keep existing state
     }
   }
 
   // ── Update local user (e.g. after membership upgrade) ────────────────────
-
   void updateUser(AppUser updated) {
     _user = updated;
     notifyListeners();
   }
 
   // ── Mark founder profile as complete locally ──────────────────────────────
-  //    Call this after OnboardingScreen saves successfully so needsOnboarding
-  //    flips to false immediately without a round-trip to the server.
-
   void markOnboardingComplete() {
     if (_user == null) return;
     _user = AppUser(
@@ -308,12 +257,16 @@ class AuthProvider extends ChangeNotifier {
       membershipStatus:       _user!.membershipStatus,
       membershipPlan:         _user!.membershipPlan,
       membershipEndDate:      _user!.membershipEndDate,
+      membershipExpiry:       _user!.membershipExpiry,
       isMember:               _user!.isMember,
       isAdmin:                _user!.isAdmin,
       isApproved:             _user!.isApproved,
       isActive:               _user!.isActive,
-      founderProfileComplete: true,   // ← flip the flag
+      founderProfileComplete: true,
       profilePicture:         _user!.profilePicture,
+      phone:                  _user!.phone,
+      company:                _user!.company,
+      founderProfile:         _user!.founderProfile,
     );
     notifyListeners();
   }
