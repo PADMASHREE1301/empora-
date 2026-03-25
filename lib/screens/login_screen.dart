@@ -22,8 +22,8 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailCtrl    = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
-  bool _isAdminMode   = false;
-  int  _logoTapCount  = 0;
+  bool _isAdminMode     = false;
+  int  _logoTapCount    = 0;
 
   late AnimationController _animController;
   late Animation<double>   _fadeAnim;
@@ -54,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
+  // ── Secret admin mode: tap logo 3x ───────────────────────────────────────
   void _onLogoTap() {
     if (_isAdminMode) { _exitAdminMode(); return; }
     _logoTapCount++;
@@ -76,54 +77,183 @@ class _LoginScreenState extends State<LoginScreen>
     });
   }
 
-  // ── Route after login — checks approval status ────────────────────────────
+  // ── Navigate after successful login ──────────────────────────────────────
   void _navigateAfterLogin(AuthProvider auth) {
-    late Widget destination;
-
     if (auth.isAdmin) {
-      // Admins always go straight in
-      destination = const HomeScreen();
+      // Admins go straight to home (which shows admin dashboard)
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
     } else if (!auth.isApproved) {
-      // Registered but not yet approved by admin
-      destination = const PendingApprovalScreen();
+      // Logged in but not yet approved — show waiting screen
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const PendingApprovalScreen()),
+        (route) => false,
+      );
     } else {
       // Fully approved regular user
-      destination = const HomeScreen();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
     }
+  }
 
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => destination),
-      (route) => false,
+  // ── Show "Pending Approval" dialog ────────────────────────────────────────
+  void _showPendingApprovalDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.accentGold.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.hourglass_top_rounded,
+                color: AppTheme.accentGold, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Approval Pending',
+            style: GoogleFonts.montserrat(
+              color: AppTheme.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ]),
+        content: Text(
+          'Your account is currently awaiting admin review.\n\nYou will receive a notification once your account has been approved. This usually takes less than 24 hours.',
+          style: GoogleFonts.inter(
+            color: AppTheme.textSecondary,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text('Got it',
+                  style: GoogleFonts.inter(
+                      color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
     );
   }
 
+  // ── Show "Account Deactivated" dialog ─────────────────────────────────────
+  void _showDeactivatedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.error.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.block_rounded, color: AppTheme.error, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Account Deactivated',
+            style: GoogleFonts.montserrat(
+              color: AppTheme.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ]),
+        content: Text(
+          'Your account has been deactivated by an administrator.\n\nPlease contact support@empora.com if you believe this is a mistake.',
+          style: GoogleFonts.inter(
+            color: AppTheme.textSecondary,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.error,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text('OK',
+                  style: GoogleFonts.inter(
+                      color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
+    );
+  }
+
+  // ── Main login logic ──────────────────────────────────────────────────────
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+
     final auth    = context.read<AuthProvider>();
     final success = await auth.login(
       _emailCtrl.text.trim(),
       _passwordCtrl.text,
     );
-    if (success && mounted) {
-      if (_isAdminMode) {
-        await Future.delayed(const Duration(milliseconds: 400));
-        if (!mounted) return;
-        if (!auth.isAdmin) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Access denied. Not an admin account.'),
-              backgroundColor: AppTheme.error,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          );
-          await auth.logout();
-          return;
-        }
+
+    if (!mounted) return;
+
+    if (success) {
+      // Admin-mode check: reject non-admin logins in admin mode
+      if (_isAdminMode && !auth.isAdmin) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Access denied. Not an admin account.'),
+            backgroundColor: AppTheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        await auth.logout();
+        return;
       }
       _navigateAfterLogin(auth);
+      return;
     }
-    if (!success && mounted && auth.error != null) {
+
+    // ── Handle specific error codes from the backend ──────────────────────
+    final errorCode = auth.errorCode; // e.g. 'PENDING_APPROVAL' or 'ACCOUNT_DEACTIVATED'
+
+    if (errorCode == 'PENDING_APPROVAL') {
+      _showPendingApprovalDialog();
+    } else if (errorCode == 'ACCOUNT_DEACTIVATED') {
+      _showDeactivatedDialog();
+    } else if (auth.error != null) {
+      // Generic error snackbar for wrong password, etc.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(auth.error!),
@@ -143,6 +273,7 @@ class _LoginScreenState extends State<LoginScreen>
       backgroundColor: AppTheme.surface,
       body: Stack(
         children: [
+          // ── Top gradient header ─────────────────────────────────────────
           AnimatedContainer(
             duration: const Duration(milliseconds: 400),
             height: 280,
@@ -161,13 +292,14 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
+          // ── Decorative circle ───────────────────────────────────────────
           Positioned(
             top: -30, right: -30,
             child: Container(
               width: 160, height: 160,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
               ),
             ),
           ),
@@ -184,6 +316,7 @@ class _LoginScreenState extends State<LoginScreen>
                     children: [
                       const SizedBox(height: 20),
 
+                      // ── Top bar: logo + back button ─────────────────────
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -205,7 +338,8 @@ class _LoginScreenState extends State<LoginScreen>
                                     style: GoogleFonts.montserrat(
                                       fontSize: 24, fontWeight: FontWeight.w800,
                                       color: _isAdminMode
-                                          ? const Color(0xFF0D1B2A) : AppTheme.primary,
+                                          ? const Color(0xFF0D1B2A)
+                                          : AppTheme.primary,
                                     ),
                                   ),
                                 ),
@@ -224,19 +358,23 @@ class _LoginScreenState extends State<LoginScreen>
                             GestureDetector(
                               onTap: _exitAdminMode,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.15),
+                                  color: Colors.white.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.white.withOpacity(0.3)),
+                                  border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.3)),
                                 ),
                                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                  const Icon(Icons.arrow_back_ios, color: Colors.white, size: 12),
+                                  const Icon(Icons.arrow_back_ios,
+                                      color: Colors.white, size: 12),
                                   const SizedBox(width: 4),
                                   Text('Back',
                                     style: GoogleFonts.inter(
                                         color: Colors.white,
-                                        fontWeight: FontWeight.w500, fontSize: 14)),
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14)),
                                 ]),
                               ),
                             ),
@@ -245,6 +383,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                       const SizedBox(height: 36),
 
+                      // ── Headline ────────────────────────────────────────
                       Text(
                         _isAdminMode ? 'Admin\nPortal 🔐' : 'Welcome\nBack 👋',
                         style: GoogleFonts.montserrat(
@@ -258,11 +397,13 @@ class _LoginScreenState extends State<LoginScreen>
                             ? 'Sign in with your admin credentials'
                             : 'Sign in to your Empora account',
                         style: GoogleFonts.inter(
-                          color: Colors.white.withOpacity(0.7), fontSize: 14),
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 14),
                       ),
 
                       const SizedBox(height: 44),
 
+                      // ── Form card ───────────────────────────────────────
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
@@ -270,8 +411,9 @@ class _LoginScreenState extends State<LoginScreen>
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.primary.withOpacity(0.12),
-                              blurRadius: 30, offset: const Offset(0, 10),
+                              color: AppTheme.primary.withValues(alpha: 0.12),
+                              blurRadius: 30,
+                              offset: const Offset(0, 10),
                             ),
                           ],
                         ),
@@ -280,15 +422,20 @@ class _LoginScreenState extends State<LoginScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+
+                              // Admin badge (only in admin mode)
                               if (_isAdminMode) ...[
                                 Container(
                                   width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10, horizontal: 14),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF0D1B2A).withOpacity(0.07),
+                                    color: const Color(0xFF0D1B2A)
+                                        .withValues(alpha: 0.07),
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
-                                        color: const Color(0xFF0D1B2A).withOpacity(0.2)),
+                                        color: const Color(0xFF0D1B2A)
+                                            .withValues(alpha: 0.2)),
                                   ),
                                   child: Row(children: [
                                     const Icon(Icons.admin_panel_settings,
@@ -297,13 +444,15 @@ class _LoginScreenState extends State<LoginScreen>
                                     Text('Admin Access',
                                       style: GoogleFonts.inter(
                                         color: const Color(0xFF0D1B2A),
-                                        fontWeight: FontWeight.w600, fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
                                       )),
                                   ]),
                                 ),
                                 const SizedBox(height: 20),
                               ],
 
+                              // Email field
                               _Label('Email Address'),
                               const SizedBox(height: 8),
                               TextFormField(
@@ -320,8 +469,10 @@ class _LoginScreenState extends State<LoginScreen>
                                   return null;
                                 },
                               ),
+
                               const SizedBox(height: 20),
 
+                              // Password field
                               _Label('Password'),
                               const SizedBox(height: 8),
                               TextFormField(
@@ -350,28 +501,32 @@ class _LoginScreenState extends State<LoginScreen>
                               ),
 
                               const SizedBox(height: 12),
+
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: Text('Forgot Password?',
                                   style: GoogleFonts.inter(
                                     color: AppTheme.primaryLight,
-                                    fontWeight: FontWeight.w500, fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 13,
                                   ),
                                 ),
                               ),
 
                               const SizedBox(height: 24),
 
+                              // Sign In button
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton(
                                   onPressed: auth.isLoading ? null : _login,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: _isAdminMode
-                                        ? const Color(0xFF0D1B2A) : AppTheme.primary,
+                                        ? const Color(0xFF0D1B2A)
+                                        : AppTheme.primary,
                                     padding: const EdgeInsets.symmetric(vertical: 16),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14)),
+                                        borderRadius: BorderRadius.circular(14)),
                                   ),
                                   child: auth.isLoading
                                       ? const SizedBox(
@@ -381,7 +536,8 @@ class _LoginScreenState extends State<LoginScreen>
                                       : Text(
                                           _isAdminMode ? 'Sign In as Admin' : 'Sign In',
                                           style: GoogleFonts.inter(
-                                            fontSize: 16, fontWeight: FontWeight.w600,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
                                             color: Colors.white,
                                           ),
                                         ),
@@ -394,15 +550,18 @@ class _LoginScreenState extends State<LoginScreen>
 
                       const SizedBox(height: 28),
 
+                      // Register link (only in user mode)
                       if (!_isAdminMode)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text("Don't have an account? ",
-                              style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+                                style: GoogleFonts.inter(
+                                    color: AppTheme.textSecondary)),
                             GestureDetector(
                               onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const RegisterScreen())),
+                                MaterialPageRoute(
+                                    builder: (_) => const RegisterScreen())),
                               child: Text('Register',
                                 style: GoogleFonts.inter(
                                   color: AppTheme.primaryLight,
@@ -425,6 +584,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 }
 
+// ── Small label widget ────────────────────────────────────────────────────────
 class _Label extends StatelessWidget {
   final String text;
   const _Label(this.text);
@@ -432,6 +592,8 @@ class _Label extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(text,
       style: GoogleFonts.inter(
-        fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary));
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.textPrimary));
   }
 }

@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +9,7 @@ import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/pending_approval_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +33,15 @@ class EmporaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final auth = AuthProvider();
+            // Kick off the saved-token check immediately when the provider is created.
+            // Once done, auth.isInitialized flips to true and RootRouter rebuilds.
+            auth.init();
+            return auth;
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'Empora',
@@ -42,7 +53,7 @@ class EmporaApp extends StatelessWidget {
   }
 }
 
-// ── Step 1: Show SplashScreen for 2.8s ──────────────────────────────────────
+// ── Step 1: Show SplashScreen for 2.8 s ──────────────────────────────────────
 class AppEntry extends StatefulWidget {
   const AppEntry({super.key});
 
@@ -60,12 +71,12 @@ class _AppEntryState extends State<AppEntry> {
         onComplete: () => setState(() => _splashDone = true),
       );
     }
-    // ── Step 2: After splash, wait for auth check to finish ─────────────────
+    // Step 2: splash finished — hand off to router
     return const RootRouter();
   }
 }
 
-// ── Step 2: Wait for AuthProvider to finish checking saved token ─────────────
+// ── Step 2: Route to the correct screen based on auth state ──────────────────
 class RootRouter extends StatelessWidget {
   const RootRouter({super.key});
 
@@ -73,7 +84,7 @@ class RootRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
-    // Still checking saved token — show loading spinner
+    // auth.init() hasn't finished checking the saved token yet
     if (!auth.isInitialized) {
       return const Scaffold(
         backgroundColor: AppTheme.primaryDark,
@@ -85,16 +96,19 @@ class RootRouter extends StatelessWidget {
       );
     }
 
-    // Not logged in → Login Screen
+    // No valid session → Login
     if (!auth.isLoggedIn) return const LoginScreen();
 
-    // Admin → Home Screen (same as users, with extra Admin tab)
+    // Admin → Home (admin sees the Admin tab inside HomeScreen)
     if (auth.isAdmin) return const HomeScreen();
 
-    // New user without founder profile → Onboarding
+    // Logged in but not yet approved by admin → waiting screen
+    if (!auth.isApproved) return const PendingApprovalScreen();
+
+    // Approved but hasn't filled in the founder profile → Onboarding
     if (auth.needsOnboarding) return const OnboardingScreen();
 
-    // Free or Member → Home Screen
+    // Fully approved user (free or member) → Home
     return const HomeScreen();
   }
 }

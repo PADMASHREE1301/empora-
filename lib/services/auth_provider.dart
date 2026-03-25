@@ -1,102 +1,161 @@
-import 'package:flutter/foundation.dart';
-import 'package:empora/models/user_model.dart';
-import 'package:empora/services/api_service.dart';
+// lib/services/auth_provider.dart
 
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+// ─── User model ───────────────────────────────────────────────────────────────
+class AppUser {
+  final String  id;
+  final String  name;
+  final String  email;
+  final String  role;
+  final String  membershipStatus;
+  final String? membershipPlan;
+  final String? membershipEndDate;
+  final bool    isMember;
+  final bool    isAdmin;
+  final bool    isApproved;
+  final bool    isActive;
+  final bool    founderProfileComplete;
+  final String? profilePicture;
+
+  const AppUser({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.role,
+    required this.membershipStatus,
+    this.membershipPlan,
+    this.membershipEndDate,
+    required this.isMember,
+    required this.isAdmin,
+    required this.isApproved,
+    required this.isActive,
+    required this.founderProfileComplete,
+    this.profilePicture,
+  });
+
+  factory AppUser.fromJson(Map<String, dynamic> json) {
+    return AppUser(
+      id:                     (json['id'] ?? json['_id'] ?? '').toString(),
+      name:                   json['name']                   as String? ?? '',
+      email:                  json['email']                  as String? ?? '',
+      role:                   json['role']                   as String? ?? 'free',
+      membershipStatus:       json['membershipStatus']       as String? ?? 'inactive',
+      membershipPlan:         json['membershipPlan']         as String?,
+      membershipEndDate:      json['membershipEndDate']      as String?,
+      isMember:               json['isMember']               as bool?   ?? false,
+      isAdmin:                json['isAdmin']                as bool?   ?? false,
+      isApproved:             json['isApproved']             as bool?   ?? false,
+      isActive:               json['isActive']               as bool?   ?? true,
+      founderProfileComplete: json['founderProfileComplete'] as bool?   ?? false,
+      profilePicture:         json['profilePicture']         as String?,
+    );
+  }
+}
+
+// ─── AuthProvider ─────────────────────────────────────────────────────────────
 class AuthProvider extends ChangeNotifier {
-  UserModel? _user;
-  bool _isLoading      = false;
-  bool _isInitialized  = false;
-  bool _isApproved     = false; // ← stored independently of UserModel
-  String? _error;
-  bool _isLoggedIn     = false;
+  // Change this to your actual backend URL.
+  // For Android emulator use 10.0.2.2, for iOS simulator use 127.0.0.1
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:5000/api',
+  );
+  static const String _tokenKey = 'auth_token';
 
-  UserModel? get user        => _user;
-  bool get isLoading         => _isLoading;
-  bool get isInitialized     => _isInitialized;
-  String? get error          => _error;
-  bool get isLoggedIn        => _isLoggedIn;
-  bool get isMember          => _user?.isMember  ?? false;
-  bool get isFree            => !isMember && !isAdmin;
-  bool get isAdmin           => _user?.isAdmin   ?? false;
-  bool get isApproved        => _isApproved;
-  bool get needsOnboarding   => _isLoggedIn && !isAdmin && _isApproved && (_user?.founderProfileComplete != true);
+  AppUser? _user;
+  String?  _token;
+  bool     _isLoading     = false;
+  bool     _isInitialized = false; // ← true once the startup token-check is done
+  String?  _error;
+  String?  _errorCode;             // ← 'PENDING_APPROVAL' | 'ACCOUNT_DEACTIVATED'
 
-  AuthProvider() {
-    _checkLoginStatus();
+  // ── Public getters ────────────────────────────────────────────────────────
+
+  AppUser? get user          => _user;
+  String?  get token         => _token;
+  bool     get isLoading     => _isLoading;
+  bool     get isInitialized => _isInitialized; // used by RootRouter in main.dart
+  String?  get error         => _error;
+  String?  get errorCode     => _errorCode;     // used by login_screen.dart
+
+  bool get isLoggedIn  => _user != null && _token != null;
+  bool get isAdmin     => _user?.isAdmin    ?? false;
+  bool get isApproved  => _user?.isApproved ?? false;
+  bool get isMember    => _user?.isMember   ?? false;
+
+  /// True when the user is logged in, approved, but has NOT yet completed
+  /// the founder profile onboarding flow.
+  /// Admins never need onboarding.
+  bool get needsOnboarding {
+    if (_user == null)   return false;
+    if (isAdmin)         return false;
+    if (!isApproved)     return false;
+    return !(_user!.founderProfileComplete);
   }
 
-  // ─── Check existing token on startup ─────────────────────────────
-  Future<void> _checkLoginStatus() async {
-    final hasToken = await ApiService.isLoggedIn();
-    if (!hasToken) {
-      _isLoggedIn     = false;
-      _isInitialized  = true;
-      notifyListeners();
-      return;
-    }
+  // ── Internal helpers ──────────────────────────────────────────────────────
 
-    try {
-      final result = await ApiService.getMe();
-      if (result['success'] == true || result['data'] != null) {
-        _isLoggedIn = true;
-        final rawUser = result['user'] ?? result['data'];
-        if (rawUser is Map<String, dynamic>) {
-          _user       = UserModel.fromJson(rawUser);
-          _isApproved = rawUser['isApproved'] as bool? ?? false;
-          // Admins are always considered approved
-          if (_user?.isAdmin == true) _isApproved = true;
-        }
-      } else {
-        _isLoggedIn = false;
-        await ApiService.clearToken();
-      }
-    } catch (_) {
-      _isLoggedIn = false;
-      await ApiService.clearToken();
-    }
+  void _setLoading(bool v) {
+    _isLoading = v;
+    notifyListeners();
+  }
 
+  void _setError(String? msg, {String? code}) {
+    _error     = msg;
+    _errorCode = code;
+    notifyListeners();
+  }
+
+  void _clearError() {
+    _error     = null;
+    _errorCode = null;
+  }
+
+  Map<String, String> get _authHeaders => {
+    'Content-Type': 'application/json',
+    if (_token != null) 'Authorization': 'Bearer $_token',
+  };
+
+  // ── Token persistence ─────────────────────────────────────────────────────
+
+  Future<void> _saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenKey, token);
+  }
+
+  Future<void> _clearToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+  }
+
+  Future<String?> _loadToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_tokenKey);
+  }
+
+  // ── App startup: restore saved session ───────────────────────────────────
+  //
+  // Call this once from EmporaApp (via ChangeNotifierProvider create callback
+  // or from initState of AppEntry). It checks for a saved token, fetches the
+  // profile if one exists, then sets isInitialized = true so RootRouter knows
+  // it's safe to decide which screen to show.
+
+  Future<void> init() async {
+    final saved = await _loadToken();
+    if (saved != null) {
+      _token = saved;
+      await fetchProfile(); // populates _user
+    }
     _isInitialized = true;
     notifyListeners();
   }
 
-  // ─── Login ────────────────────────────────────────────────────────
-  Future<bool> login(String email, String password) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+  // ── Register ──────────────────────────────────────────────────────────────
 
-    try {
-      final Map<String, dynamic> result = await ApiService.login(
-        email: email,
-        password: password,
-      );
-
-      _isLoading  = false;
-      _isLoggedIn = true;
-
-      final rawUser = result['data']?['user'] ?? result['user'] ?? result['data'];
-      if (rawUser is Map<String, dynamic>) {
-        _user       = UserModel.fromJson(rawUser);
-        _isApproved = rawUser['isApproved'] as bool? ?? false;
-        if (_user?.isAdmin == true) _isApproved = true;
-      }
-
-      notifyListeners();
-      return true;
-    } on ApiException catch (e) {
-      _isLoading = false;
-      _error = e.message;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _isLoading = false;
-      _error = e.toString();
-      notifyListeners();
-      return false;
-    }
-  }
-
-  // ─── Register ─────────────────────────────────────────────────────
   Future<bool> register({
     required String name,
     required String email,
@@ -104,109 +163,158 @@ class AuthProvider extends ChangeNotifier {
     String? phone,
     String? company,
   }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+    _setLoading(true);
+    _clearError();
 
     try {
-      final Map<String, dynamic> result = await ApiService.register(
-        name: name,
-        email: email,
-        password: password,
-        phone: phone,
-        company: company,
+      final body = {
+        'name':     name,
+        'email':    email,
+        'password': password,
+        if (phone   != null && phone.isNotEmpty)   'phone':   phone,
+        if (company != null && company.isNotEmpty) 'company': company,
+      };
+
+      final res = await http.post(
+        Uri.parse('$_baseUrl/auth/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
       );
 
-      _isLoading  = false;
-      _isLoggedIn = true;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
 
-      final rawUser = result['data']?['user'] ?? result['user'] ?? result['data'];
-      if (rawUser is Map<String, dynamic>) {
-        _user       = UserModel.fromJson(rawUser);
-        _isApproved = rawUser['isApproved'] as bool? ?? false;
-        if (_user?.isAdmin == true) _isApproved = true;
+      if (res.statusCode == 201 && data['success'] == true) {
+        _token = data['token'] as String?;
+        if (_token != null) await _saveToken(_token!);
+        if (data['user'] != null) {
+          _user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+        }
+        _setLoading(false);
+        return true;
+      } else {
+        _setError(data['message'] as String? ?? 'Registration failed.');
+        _setLoading(false);
+        return false;
       }
-
-      notifyListeners();
-      return true;
-    } on ApiException catch (e) {
-      _isLoading = false;
-      _error = e.message;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _isLoading = false;
-      _error = e.toString();
-      notifyListeners();
+    } catch (_) {
+      _setError('Network error. Please check your connection.');
+      _setLoading(false);
       return false;
     }
   }
 
-  // ─── Fetch Profile ────────────────────────────────────────────────
-  Future<void> fetchProfile() async {
-    try {
-      final Map<String, dynamic> result = await ApiService.getMe();
-      final rawData = result['user'] ?? result['data'] ?? result;
-      if (rawData is Map<String, dynamic>) {
-        _user       = UserModel.fromJson(rawData);
-        _isApproved = rawData['isApproved'] as bool? ?? false;
-        if (_user?.isAdmin == true) _isApproved = true;
-        notifyListeners();
-      }
-    } catch (_) {}
-  }
+  // ── Login ─────────────────────────────────────────────────────────────────
 
-  // ─── Upgrade membership ───────────────────────────────────────────
-  Future<bool> upgradeMembership(String plan) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+  Future<bool> login(String email, String password) async {
+    _setLoading(true);
+    _clearError();
 
     try {
-      final result = await ApiService.upgradeMembership(plan: plan);
-      _isLoading = false;
+      final res = await http.post(
+        Uri.parse('$_baseUrl/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': password}),
+      );
 
-      final rawUser = result['user'];
-      if (rawUser is Map<String, dynamic>) {
-        _user       = UserModel.fromJson(rawUser);
-        _isApproved = rawUser['isApproved'] as bool? ?? _isApproved;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+
+      if (res.statusCode == 200 && data['success'] == true) {
+        _token = data['token'] as String?;
+        if (_token != null) await _saveToken(_token!);
+        if (data['user'] != null) {
+          _user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+        }
+        _setLoading(false);
+        return true;
+      } else {
+        // Capture backend error code for login_screen.dart to handle
+        _setError(
+          data['message'] as String? ?? 'Login failed.',
+          code: data['code'] as String?,
+        );
+        _setLoading(false);
+        return false;
       }
-
-      // Force-refresh from server so isMember, role, membershipStatus are all current
-      await fetchProfile();
-
-      notifyListeners();
-      return true;
-    } on ApiException catch (e) {
-      _isLoading = false;
-      _error = e.message;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _isLoading = false;
-      _error = e.toString();
-      notifyListeners();
+    } catch (_) {
+      _setError('Network error. Please check your connection.');
+      _setLoading(false);
       return false;
     }
   }
 
-  // ─── Logout ───────────────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────────────────────
+
   Future<void> logout() async {
     try {
-      await ApiService.logout();
+      await http.post(
+        Uri.parse('$_baseUrl/auth/logout'),
+        headers: _authHeaders,
+      );
     } catch (_) {
-      await ApiService.clearToken();
+      // Ignore — clear local state regardless
     }
-    _user       = null;
-    _isLoggedIn = false;
-    _isApproved = false;
-    _error      = null;
+    _user  = null;
+    _token = null;
+    _clearError();
+    await _clearToken();
     notifyListeners();
   }
 
-  // ─── Clear error ──────────────────────────────────────────────────
-  void clearError() {
-    _error = null;
+  // ── Fetch current profile from /api/auth/me ───────────────────────────────
+
+  Future<void> fetchProfile() async {
+    if (_token == null) return;
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/auth/me'),
+        headers: _authHeaders,
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        if (data['user'] != null) {
+          _user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+          notifyListeners();
+        }
+      } else if (res.statusCode == 401) {
+        // Token expired or invalid — clear session silently
+        _user  = null;
+        _token = null;
+        await _clearToken();
+        notifyListeners();
+      }
+    } catch (_) {
+      // Network error on startup — keep existing state, don't crash
+    }
+  }
+
+  // ── Update local user (e.g. after membership upgrade) ────────────────────
+
+  void updateUser(AppUser updated) {
+    _user = updated;
+    notifyListeners();
+  }
+
+  // ── Mark founder profile as complete locally ──────────────────────────────
+  //    Call this after OnboardingScreen saves successfully so needsOnboarding
+  //    flips to false immediately without a round-trip to the server.
+
+  void markOnboardingComplete() {
+    if (_user == null) return;
+    _user = AppUser(
+      id:                     _user!.id,
+      name:                   _user!.name,
+      email:                  _user!.email,
+      role:                   _user!.role,
+      membershipStatus:       _user!.membershipStatus,
+      membershipPlan:         _user!.membershipPlan,
+      membershipEndDate:      _user!.membershipEndDate,
+      isMember:               _user!.isMember,
+      isAdmin:                _user!.isAdmin,
+      isApproved:             _user!.isApproved,
+      isActive:               _user!.isActive,
+      founderProfileComplete: true,   // ← flip the flag
+      profilePicture:         _user!.profilePicture,
+    );
     notifyListeners();
   }
 }
