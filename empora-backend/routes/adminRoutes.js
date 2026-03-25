@@ -8,20 +8,21 @@ const { getPendingUsers, approveUser, rejectUser } = require('../controllers/use
 
 const guard = [verifyToken, adminOnly];
 
-router.get('/dashboard',                  ...guard, admin.getDashboardStats);
-router.get('/users',                      ...guard, admin.getAllUsers);
-router.patch('/users/:id',                ...guard, admin.updateUser);
-router.get('/submissions',                ...guard, admin.getAllSubmissions);
-router.patch('/submissions/:id/approve',  ...guard, admin.approveSubmission);
-router.patch('/submissions/:id/reject',   ...guard, admin.rejectSubmission);
+router.get('/dashboard',                           ...guard, admin.getDashboardStats);
+router.get('/users',                               ...guard, admin.getAllUsers);
+router.patch('/users/:userId',                     ...guard, admin.updateUser);
+router.get('/submissions',                         ...guard, admin.getAllSubmissions);
+router.get('/submissions/:submissionId',           ...guard, admin.getSubmissionDetail);
+router.patch('/submissions/:submissionId/approve', ...guard, admin.approveSubmission);
+router.patch('/submissions/:submissionId/reject',  ...guard, admin.rejectSubmission);
 
 // ── Pricing ───────────────────────────────────────────────────────────────────
-router.get('/pricing',                    ...guard, admin.getPricing);
-router.put('/pricing',                    ...guard, admin.updatePricing);
+router.get('/pricing',                             ...guard, admin.getPricing);
+router.put('/pricing',                             ...guard, admin.updatePricing);
 
 // ── User Approval ─────────────────────────────────────────────────────────────
-router.get('/pending-users',              ...guard, getPendingUsers);
-router.post('/approve-user/:userId',      ...guard, approveUser);
-router.post('/reject-user/:userId',       ...guard, rejectUser);
+router.get('/pending-users',                       ...guard, getPendingUsers);
+router.post('/approve-user/:userId',               ...guard, approveUser);
+router.post('/reject-user/:userId',                ...guard, rejectUser);
 
 module.exports = router;

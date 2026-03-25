@@ -49,18 +49,19 @@ exports.register = async (req, res) => {
     const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // ── CHANGED: default role is now 'free' instead of 'founder' ──────────────
     const allowedRoles = ['free', 'membership'];
     const assignedRole = allowedRoles.includes(role) ? role : 'free';
 
     const user = await User.create({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      password: hashedPassword,
-      role: assignedRole,
+      name:       name.trim(),
+      email:      email.toLowerCase().trim(),
+      password:   hashedPassword,
+      role:       assignedRole,
+      isApproved: false,   // ← new users always start unapproved
+      isActive:   true,
     });
 
-    // Send pending-approval notification
+    // Send pending-approval notification to the new user
     await Notification.create({
       userId:  user._id,
       title:   '⏳ Account Pending Approval',
@@ -83,9 +84,9 @@ exports.register = async (req, res) => {
         email:            user.email,
         role:             user.role,
         membershipStatus: user.membershipStatus,
-        isMember:         user.hasMembership(),
-        isAdmin:          user.role === 'admin',
-        isApproved:       user.isApproved,        // ← always false for new users
+        isMember:         false,
+        isAdmin:          false,
+        isApproved:       false,   // ← always false for brand-new users
         createdAt:        user.createdAt,
       },
     });
@@ -115,6 +116,25 @@ exports.login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
 
+    // ── APPROVAL GATE: block deactivated accounts ─────────────────────────────
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support.',
+        code: 'ACCOUNT_DEACTIVATED',
+      });
+    }
+
+    // ── APPROVAL GATE: block unapproved accounts (admins bypass) ─────────────
+    const isAdmin = user.role === 'admin' || user.isAdmin === true;
+    if (!isAdmin && !user.isApproved) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is pending admin approval. You will be notified once approved.',
+        code: 'PENDING_APPROVAL',
+      });
+    }
+
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
@@ -134,8 +154,8 @@ exports.login = async (req, res) => {
         membershipPlan:         user.membershipPlan,
         membershipEndDate:      user.membershipEndDate,
         isMember:               user.isMember === true || user.hasMembership(),
-        isAdmin:                user.role === 'admin' || user.isAdmin === true,
-        isApproved:             (user.role === 'admin' || user.isAdmin === true) ? true : (user.isApproved ?? false),
+        isAdmin:                isAdmin,
+        isApproved:             isAdmin ? true : (user.isApproved ?? false),
         founderProfileComplete: user.founderProfileComplete,
         lastLogin:              user.lastLogin,
       },
@@ -159,6 +179,7 @@ exports.getMe = async (req, res) => {
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
+    const isAdmin = user.role === 'admin' || user.isAdmin === true;
     return res.status(200).json({
       success: true,
       user: {
@@ -173,8 +194,8 @@ exports.getMe = async (req, res) => {
         membershipEndDate:      user.membershipEndDate,
         membershipExpiry:       user.membershipExpiry,
         isMember:               user.isMember === true || user.hasMembership(),
-        isAdmin:                user.role === 'admin' || user.isAdmin === true,
-        isApproved:             (user.role === 'admin' || user.isAdmin === true) ? true : (user.isApproved ?? false),
+        isAdmin:                isAdmin,
+        isApproved:             isAdmin ? true : (user.isApproved ?? false),
         founderProfileComplete: user.founderProfileComplete,
         profilePicture:         user.profilePicture,
         founderProfile:         user.founderProfile,
@@ -264,9 +285,7 @@ exports.deleteAccount = async (req, res) => {
   }
 };
 
-// ─── @route   POST /api/auth/upgrade-membership ── NEW ───────────────────────
-// @desc    Upgrade current user to membership plan
-// @access  Private
+// ─── @route   POST /api/auth/upgrade-membership ───────────────────────────────
 exports.upgradeMembership = async (req, res) => {
   try {
     const { plan } = req.body; // 'monthly' | 'yearly'
@@ -275,7 +294,7 @@ exports.upgradeMembership = async (req, res) => {
       return res.status(400).json({ success: false, message: "Plan must be 'monthly' or 'yearly'." });
     }
 
-    const durationMs  = plan === 'monthly'
+    const durationMs = plan === 'monthly'
       ? 30  * 24 * 60 * 60 * 1000
       : 365 * 24 * 60 * 60 * 1000;
 
@@ -290,13 +309,12 @@ exports.upgradeMembership = async (req, res) => {
         membershipPlan:       plan,
         membershipStartDate:  now,
         membershipEndDate:    endDate,
-        membershipExpiry:     endDate,  // ← used by expiry checker
-        isMember:             true,     // ← convenience flag
+        membershipExpiry:     endDate,
+        isMember:             true,
       },
       { new: true }
     );
 
-    // Send membership notification
     await Notification.create({
       userId:  req.user.id,
       title:   '🏆 Membership Activated!',
@@ -320,7 +338,7 @@ exports.upgradeMembership = async (req, res) => {
         membershipExpiry:  user.membershipExpiry,
         isMember:          true,
         isAdmin:           user.role === 'admin',
-        isApproved:        user.isApproved,   // ← NEW
+        isApproved:        user.isApproved,
       },
     });
   } catch (err) {
@@ -340,7 +358,7 @@ exports.saveFounderProfile = async (req, res) => {
     } = req.body;
 
     const update = {
-      founderProfileComplete:         true,            // ← top-level flag used by Flutter
+      founderProfileComplete:         true,
       'founderProfile.phone':         phone         || null,
       'founderProfile.city':          city          || null,
       'founderProfile.state':         state         || null,
