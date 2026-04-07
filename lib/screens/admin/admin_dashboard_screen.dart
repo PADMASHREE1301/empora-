@@ -1561,7 +1561,7 @@ class _PricingTabState extends State<_PricingTab> {
         // Monthly price
         Text('Monthly Plan (₹)',
             style: GoogleFonts.montserrat(
-                fontWeight: FontWeight.w700, color: const Color.fromARGB(255, 255, 255, 255))),
+                fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
         const SizedBox(height: 8),
         _PriceField(
           controller: _monthlyCtrl,
@@ -1576,7 +1576,7 @@ class _PricingTabState extends State<_PricingTab> {
         // Yearly price
         Text('Yearly Plan (₹)',
             style: GoogleFonts.montserrat(
-                fontWeight: FontWeight.w700, color: const Color.fromARGB(255, 255, 255, 255))),
+                fontWeight: FontWeight.w700, color: const Color.fromARGB(255, 50, 50, 185))),
         const SizedBox(height: 8),
         _PriceField(
           controller: _yearlyCtrl,
@@ -1779,7 +1779,7 @@ class _PreviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E),
+        color: const Color.fromARGB(255, 248, 248, 249),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
