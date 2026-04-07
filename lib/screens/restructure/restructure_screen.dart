@@ -133,7 +133,7 @@ class _RestructureScreenState extends State<RestructureScreen> {
           ),
 
           const SizedBox(height: 20),
-          ModuleChatButton(label: 'Ask Restructure Advisor', sub: 'Pivot · Cost Cutting · Debt · Exit Strategy', color: const Color(0xFFB8860B), onTap: _openChat),
+          ModuleChatButton(label: 'Ask Restructure Advisor', sub: 'Pivot · Cost Cutting · Debt · Exit Strategy', color: const Color(0xFFF5A623), onTap: _openChat),
           const SizedBox(height: 20),
         ]),
       ),

@@ -145,7 +145,7 @@ class AdvisorConfigs {
     title: 'Project Advisor',
     subtitle: 'Plan, Track & Deliver Projects',
     icon: Icons.task_alt_outlined,
-    color: Color.fromARGB(255, 32, 85, 58),
+    color: Color(0xFF16A085),
     greeting: 'I\'m your Project Management Advisor. I help founders plan, execute, and deliver projects on time and within budget.\n\nWhat project challenge can I help you with?',
     suggestions: [
       _SuggestionItem(emoji: '📅', title: 'Project planning', subtitle: 'Create a roadmap', prompt: 'How do I create an effective project plan and roadmap for my team?'),

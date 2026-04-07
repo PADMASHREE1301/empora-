@@ -1561,7 +1561,7 @@ class _PricingTabState extends State<_PricingTab> {
         // Monthly price
         Text('Monthly Plan (₹)',
             style: GoogleFonts.montserrat(
-                fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                fontWeight: FontWeight.w700, color: const Color.fromARGB(255, 255, 255, 255))),
         const SizedBox(height: 8),
         _PriceField(
           controller: _monthlyCtrl,
@@ -1576,7 +1576,7 @@ class _PricingTabState extends State<_PricingTab> {
         // Yearly price
         Text('Yearly Plan (₹)',
             style: GoogleFonts.montserrat(
-                fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                fontWeight: FontWeight.w700, color: const Color.fromARGB(255, 255, 255, 255))),
         const SizedBox(height: 8),
         _PriceField(
           controller: _yearlyCtrl,
