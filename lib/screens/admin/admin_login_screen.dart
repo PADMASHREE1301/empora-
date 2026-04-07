@@ -478,23 +478,25 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                         const SizedBox(height: 20),
 
                         // ── Biometric button ──────────────────────────────
-                        if (_biometricAvail) ...[
-                          Row(children: [
-                            const Expanded(child: Divider(color: AppTheme.adminBorder)),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text('or',
-                                  style: GoogleFonts.inter(
-                                      color: AppTheme.adminTextSecond,
-                                      fontSize: 12)),
-                            ),
-                            const Expanded(child: Divider(color: AppTheme.adminBorder)),
-                          ]),
+                        Row(children: [
+                          const Expanded(child: Divider(color: AppTheme.adminBorder)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text('or',
+                                style: GoogleFonts.inter(
+                                    color: AppTheme.adminTextSecond,
+                                    fontSize: 12)),
+                          ),
+                          const Expanded(child: Divider(color: AppTheme.adminBorder)),
+                        ]),
 
-                          const SizedBox(height: 20),
+                        const SizedBox(height: 20),
 
-                          GestureDetector(
-                            onTap: _loginWithBiometric,
+                        GestureDetector(
+                          onTap: _biometricAvail ? _loginWithBiometric : null,
+                          child: AnimatedOpacity(
+                            opacity: _biometricAvail ? 1.0 : 0.45,
+                            duration: const Duration(milliseconds: 300),
                             child: Container(
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -502,28 +504,38 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                                 color: AppTheme.adminCard,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                    color: AppTheme.adminAccent.withValues(alpha: 0.4)),
+                                    color: _biometricAvail
+                                        ? AppTheme.adminAccent.withValues(alpha: 0.4)
+                                        : AppTheme.adminBorder),
                               ),
                               child: Column(children: [
                                 Icon(
                                   Icons.fingerprint,
                                   size: 36,
-                                  color: AppTheme.adminAccent,
+                                  color: _biometricAvail
+                                      ? AppTheme.adminAccent
+                                      : AppTheme.adminTextSecond,
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  _biometricSaved
-                                      ? 'Login with Biometric'
-                                      : 'Set Up Biometric Login',
+                                  _biometricAvail
+                                      ? (_biometricSaved
+                                          ? 'Login with Biometric'
+                                          : 'Set Up Biometric Login')
+                                      : 'Biometric Not Available',
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: AppTheme.adminAccent,
+                                    color: _biometricAvail
+                                        ? AppTheme.adminAccent
+                                        : AppTheme.adminTextSecond,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Fingerprint or Face ID',
+                                  _biometricAvail
+                                      ? 'Fingerprint or Face ID'
+                                      : 'Not supported on this device',
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
                                     color: AppTheme.adminTextSecond,
@@ -532,7 +544,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                               ]),
                             ),
                           ),
-                        ],
+                        ),
 
                         const Expanded(child: SizedBox()),
 

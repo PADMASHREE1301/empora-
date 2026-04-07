@@ -355,15 +355,19 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
                 Container(
                   width: 34, height: 34,
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.1),
+                    color: auth.isAdmin
+                        ? AppTheme.adminAccent.withValues(alpha: 0.15)
+                        : AppTheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.format_quote_rounded, color: AppTheme.primary, size: 18),
+                  child: Icon(Icons.format_quote_rounded,
+                    color: auth.isAdmin ? AppTheme.adminAccent : AppTheme.primary, size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(_todayQuote,
                     style: GoogleFonts.inter(
-                      fontSize: 13, color: AppTheme.textPrimary,
+                      fontSize: 13,
+                      color: auth.isAdmin ? AppTheme.adminTextPrimary : AppTheme.textPrimary,
                       fontStyle: FontStyle.italic, height: 1.45, fontWeight: FontWeight.w500)),
                 ),
               ]),
