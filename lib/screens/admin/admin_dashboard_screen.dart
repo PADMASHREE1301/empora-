@@ -1701,7 +1701,7 @@ class _PriceFieldState extends State<_PriceField> {
           controller: widget.controller,
           keyboardType: TextInputType.number,
           style: GoogleFonts.montserrat(
-              fontSize: 22, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
+              fontSize: 22, fontWeight: FontWeight.w800, color: const Color.fromARGB(255, 255, 255, 255)),
           decoration: InputDecoration(
             hintText: widget.hint,
             hintStyle: GoogleFonts.montserrat(
@@ -1740,7 +1740,7 @@ class _PricePreviewState extends State<_PricePreview> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 195, 205, 47),
+        color: const Color.fromARGB(255, 26, 46, 33),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),
