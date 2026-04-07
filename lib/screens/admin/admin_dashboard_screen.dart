@@ -1779,7 +1779,7 @@ class _PreviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 248, 248, 249),
+        color: const Color.fromARGB(255, 18, 200, 200),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
