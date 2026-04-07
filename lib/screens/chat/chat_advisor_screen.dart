@@ -1,13 +1,4 @@
 // lib/screens/chat/chat_advisor_screen.dart
-// Improved AI Chat Advisor — used by Taxation, Land & Legal, Licence, Loans,
-// Risk, Project, Cyber, Restructure modules
-// Features:
-//   • Profile context bar (business type + stage)
-//   • Smart personalised suggestions grid
-//   • Quick chip buttons
-//   • Better header with online indicator
-//   • Cleaner message bubbles
-//   • Crown logo branding
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -154,7 +145,7 @@ class AdvisorConfigs {
     title: 'Project Advisor',
     subtitle: 'Plan, Track & Deliver Projects',
     icon: Icons.task_alt_outlined,
-    color: Color(0xFF16A085),
+    color: Color.fromARGB(255, 32, 85, 58),
     greeting: 'I\'m your Project Management Advisor. I help founders plan, execute, and deliver projects on time and within budget.\n\nWhat project challenge can I help you with?',
     suggestions: [
       _SuggestionItem(emoji: '📅', title: 'Project planning', subtitle: 'Create a roadmap', prompt: 'How do I create an effective project plan and roadmap for my team?'),
@@ -170,7 +161,7 @@ class AdvisorConfigs {
     title: 'Cyber Advisor',
     subtitle: 'Protect Your Digital Assets',
     icon: Icons.security_outlined,
-    color: Color(0xFF1A3A7C),
+    color: Color(0xFF2C3E50),
     greeting: 'I\'m your Cybersecurity Advisor. I help founders protect their digital assets, customer data, and business systems from cyber threats.\n\nLet\'s secure your digital business today.',
     suggestions: [
       _SuggestionItem(emoji: '🔐', title: 'Password security', subtitle: 'Best practices', prompt: 'What are the best password and access security practices for my business?'),
@@ -186,7 +177,7 @@ class AdvisorConfigs {
     title: 'Restructure Advisor',
     subtitle: 'Business Restructuring Advisory',
     icon: Icons.account_tree_outlined,
-    color: Color(0xFF7F8C8D),
+    color: Color(0xFFF5A623),
     greeting: 'I\'m your Business Restructuring Advisor. I help founders reshape their business model, operations, and finances during challenging or growth phases.\n\nLet\'s discuss how to transform your business.',
     suggestions: [
       _SuggestionItem(emoji: '🔄', title: 'Business model', subtitle: 'Pivot strategy', prompt: 'How do I restructure my business model to improve profitability?'),
