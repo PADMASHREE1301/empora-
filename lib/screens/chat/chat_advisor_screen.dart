@@ -122,7 +122,7 @@ class AdvisorConfigs {
     title: 'Loan Advisor',
     subtitle: 'Funding & Financial Planning',
     icon: Icons.account_balance_outlined,
-    color: Color(0xFF2980B9),
+    color: Color(0xFF00A8E8),
     greeting: 'I\'m your Loan & Financial Advisor. I help founders find the right funding options — from bank loans to government schemes and investor funding.\n\nLet\'s find the best financing option for your business.',
     suggestions: [
       _SuggestionItem(emoji: '🏦', title: 'Bank loan options', subtitle: 'Best rates for you', prompt: 'What are the best bank loan options available for my stage of business?'),

@@ -12,7 +12,7 @@ class ProjectScreen extends StatefulWidget {
 }
 
 class _ProjectScreenState extends State<ProjectScreen> {
-  static const _accent = Color(0xFF00D2FF);
+  static const _accent = Color(0xFF16A085);
 
   final _taskCtrl  = TextEditingController();
   final _ownerCtrl = TextEditingController();
@@ -41,7 +41,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
     MaterialPageRoute(builder: (_) => const ModuleChatScreen(
       module: 'projectManagement', title: 'Project Advisor',
       subtitle: 'Planning, Milestones & Delivery',
-      icon: Icons.task_alt_rounded, accentColor: Color(0xFF00D2FF),
+      icon: Icons.task_alt_rounded, accentColor: Color(0xFF16A085),
       welcomeMessage:
           'I\'m your project management advisor. I\'ll help you plan projects, '
           'track milestones, manage resources, and keep deliveries on time.\n\n'

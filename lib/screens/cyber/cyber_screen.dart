@@ -12,7 +12,7 @@ class CyberScreen extends StatefulWidget {
 }
 
 class _CyberScreenState extends State<CyberScreen> {
-  static const _accent = Color(0xFF7B61FF);
+  static const _accent = Color(0xFF2C3E50);
 
   final Map<String, List<Map<String, dynamic>>> _audit = {
     'Passwords & Access': [
@@ -47,7 +47,7 @@ class _CyberScreenState extends State<CyberScreen> {
     MaterialPageRoute(builder: (_) => const ModuleChatScreen(
       module: 'cyberSecurity', title: 'Security Advisor',
       subtitle: 'Cybersecurity & Data Protection',
-      icon: Icons.security_rounded, accentColor: Color(0xFF7B61FF),
+      icon: Icons.security_rounded, accentColor: Color(0xFF2C3E50),
       welcomeMessage:
           'I\'m your cybersecurity advisor. I\'ll help you protect your business data, '
           'set up security policies, and stay compliant with India\'s data protection laws.\n\n'

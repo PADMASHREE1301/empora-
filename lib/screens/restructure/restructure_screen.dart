@@ -52,7 +52,7 @@ class _RestructureScreenState extends State<RestructureScreen> {
     MaterialPageRoute(builder: (_) => const ModuleChatScreen(
       module: 'restructure', title: 'Restructure Advisor',
       subtitle: 'Business Transformation & Turnaround',
-      icon: Icons.autorenew_rounded, accentColor: Color(0xFFFFD700),
+      icon: Icons.autorenew_rounded, accentColor: Color(0xFFF5A623),
       welcomeMessage:
           'I\'m your business restructuring advisor. Whether you\'re pivoting, '
           'optimizing costs, or planning a turnaround — I\'ll guide you through it.\n\n'
@@ -70,7 +70,7 @@ class _RestructureScreenState extends State<RestructureScreen> {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFB8860B), foregroundColor: Colors.white, elevation: 0,
+        backgroundColor: const Color(0xFFF5A623), foregroundColor: Colors.white, elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios, size: 18), onPressed: () => Navigator.pop(context)),
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Restructure Advisor', style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
@@ -83,7 +83,7 @@ class _RestructureScreenState extends State<RestructureScreen> {
         child: Column(children: [
 
           ModuleCard(
-            icon: Icons.monitor_heart_outlined, color: const Color(0xFFB8860B),
+            icon: Icons.monitor_heart_outlined, color: const Color(0xFFF5A623),
             title: 'Business Health Check',
             subtitle: 'Diagnose your financial health in 60 seconds',
             child: Column(children: [
@@ -97,7 +97,7 @@ class _RestructureScreenState extends State<RestructureScreen> {
               const SizedBox(height: 14),
               SizedBox(width: double.infinity,
                 child: ElevatedButton(onPressed: _assess,
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB8860B), foregroundColor: Colors.white,
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5A623), foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   child: Text('Run Health Check', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)))),

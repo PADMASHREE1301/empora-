@@ -12,7 +12,7 @@ class TaxationScreen extends StatefulWidget {
 }
 
 class _TaxationScreenState extends State<TaxationScreen> {
-  static const _accent = Color(0xFF00C896);
+  static const _accent = Color(0xFF27AE60);
 
   final _ctrl = TextEditingController();
   String _rate = '18%';
@@ -45,7 +45,7 @@ class _TaxationScreenState extends State<TaxationScreen> {
     MaterialPageRoute(builder: (_) => const ModuleChatScreen(
       module: 'taxation', title: 'Tax Advisor',
       subtitle: 'Personal CA & Tax Planning',
-      icon: Icons.receipt_long_rounded, accentColor: Color(0xFF00C896),
+      icon: Icons.receipt_long_rounded, accentColor: Color(0xFF27AE60),
       welcomeMessage:
           'I\'m your personal CA and tax advisor. I can help you with income tax planning, '
           'GST compliance, TDS, startup exemptions, and tax-saving strategies.\n\n'

@@ -12,7 +12,7 @@ class RiskScreen extends StatefulWidget {
 }
 
 class _RiskScreenState extends State<RiskScreen> {
-  static const _accent = Color(0xFFFF4757);
+  static const _accent = Color(0xFFE74C3C);
 
   final List<Map<String, dynamic>> _risks = [
     {'name': 'Financial Risk',     'icon': Icons.account_balance_wallet_outlined, 'v': 1.0, 'tip': 'Check cash runway, burn rate and debt ratio'},
@@ -31,7 +31,7 @@ class _RiskScreenState extends State<RiskScreen> {
     MaterialPageRoute(builder: (_) => const ModuleChatScreen(
       module: 'riskManagement', title: 'Risk Advisor',
       subtitle: 'Business Risk & Continuity Planning',
-      icon: Icons.shield_rounded, accentColor: Color(0xFFFF4757),
+      icon: Icons.shield_rounded, accentColor: Color(0xFFE74C3C),
       welcomeMessage:
           'I\'m your business risk consultant. I\'ll help you identify hidden risks, '
           'prioritize them, and build a solid mitigation strategy.\n\n'
