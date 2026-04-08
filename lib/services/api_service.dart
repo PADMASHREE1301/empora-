@@ -1,4 +1,5 @@
 // lib/services/api_service.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -9,9 +10,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
 
-static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
+  static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
 
-  // ── Token helpers ─────────────────────────────────────────────────────────
+  // ── Timeout durations ──────────────────────────────────────────────────────
+  // Render free tier can take 50+ seconds to wake up from sleep.
+  // All requests use 60s timeout. File uploads use 120s.
+  static const Duration _timeout       = Duration(seconds: 60);
+  static const Duration _uploadTimeout = Duration(seconds: 120);
+
+  // ── Server warm-up ping ────────────────────────────────────────────────────
+  // Call this from SplashScreen initState so the server is awake
+  // by the time the user reaches the login screen.
+  static Future<void> warmUp() async {
+    try {
+      await http
+          .get(Uri.parse('$_baseUrl/health'))
+          .timeout(_timeout);
+    } catch (_) {
+      // Silently ignore — this is just a warm-up, not a critical request.
+    }
+  }
+
+  // ── Token helpers ──────────────────────────────────────────────────────────
   static Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('auth_token');
@@ -67,7 +87,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
         if (phone != null && phone.isNotEmpty) 'phone': phone,
         if (company != null && company.isNotEmpty) 'company': company,
       }),
-    );
+    ).timeout(_timeout);
     final data = _decode(res);
     if (data['token'] != null) await saveToken(data['token']);
     return data;
@@ -81,7 +101,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       Uri.parse('$_baseUrl/auth/login'),
       headers: await _headers(),
       body: jsonEncode({'email': email, 'password': password}),
-    );
+    ).timeout(_timeout);
     final data = _decode(res);
     if (data['token'] != null) await saveToken(data['token']);
     return data;
@@ -92,7 +112,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       final res = await http.post(
         Uri.parse('$_baseUrl/auth/logout'),
         headers: await _headers(),
-      );
+      ).timeout(_timeout);
       _decode(res);
     } finally {
       await clearToken();
@@ -105,11 +125,11 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
     final res = await http.get(
       Uri.parse('$_baseUrl/auth/me'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
-  // ── Upgrade membership ────────────────────────────────────────────────────
+  // ── Upgrade membership ─────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> upgradeMembership({
     required String plan,
   }) async {
@@ -117,16 +137,16 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       Uri.parse('$_baseUrl/auth/upgrade-membership'),
       headers: await _headers(),
       body: jsonEncode({'plan': plan}),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
-  // ── Admin helpers ─────────────────────────────────────────────────────────
+  // ── Admin helpers ──────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> adminGet(String path) async {
     final res = await http.get(
       Uri.parse('$_baseUrl/admin$path'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
@@ -138,7 +158,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       Uri.parse('$_baseUrl/admin$path'),
       headers: await _headers(),
       body: jsonEncode(body),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
@@ -150,11 +170,11 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       Uri.parse('$_baseUrl/admin$path'),
       headers: await _headers(),
       body: jsonEncode(body),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
-  // ─── FUNDRAISING ──────────────────────────────────────────────────────────
+  // ─── FUNDRAISING ───────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> createFundRaising({
     required String company,
@@ -173,7 +193,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
         'askAmount': askAmount, 'businessIdea': businessIdea,
         'problemStatement': problemStatement, 'solution': solution,
       }),
-    );
+    ).timeout(_timeout);
     final data = _decode(res);
     return data['data'] as Map<String, dynamic>;
   }
@@ -186,7 +206,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       Uri.parse('$_baseUrl/fund/$recordId/pitch-deck'),
       headers: await _headers(),
       body: jsonEncode(fields),
-    );
+    ).timeout(_timeout);
     _decode(res);
   }
 
@@ -209,7 +229,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
     } else if (file != null) {
       request.files.add(await http.MultipartFile.fromPath('pitchFile', file.path, contentType: mimeType));
     }
-    final streamed = await request.send();
+    final streamed = await request.send().timeout(_uploadTimeout);
     final res = await http.Response.fromStream(streamed);
     return _decode(res)['data'] as Map<String, dynamic>;
   }
@@ -222,7 +242,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       Uri.parse('$_baseUrl/fund/$recordId/valuation'),
       headers: await _headers(),
       body: jsonEncode(fields),
-    );
+    ).timeout(_timeout);
     _decode(res);
   }
 
@@ -245,7 +265,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
     } else if (file != null) {
       request.files.add(await http.MultipartFile.fromPath('valuationFile', file.path, contentType: mimeType));
     }
-    final streamed = await request.send();
+    final streamed = await request.send().timeout(_uploadTimeout);
     final res = await http.Response.fromStream(streamed);
     return _decode(res)['data'] as Map<String, dynamic>;
   }
@@ -272,7 +292,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
         'traction': traction, 'stage': stage,
         'investorComments': investorComments,
       }),
-    );
+    ).timeout(_timeout);
     _decode(res);
   }
 
@@ -280,7 +300,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
     final res = await http.get(
       Uri.parse('$_baseUrl/fund/my'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res)['data'] as List<dynamic>;
   }
 
@@ -290,7 +310,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
     final res = await http.get(
       Uri.parse('$_baseUrl/fund/$recordId/extracted-text'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res)['data'] as Map<String, dynamic>;
   }
 
@@ -302,11 +322,11 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       Uri.parse('$_baseUrl/fund/$recordId/ai-report'),
       headers: await _headers(),
       body: jsonEncode(report),
-    );
+    ).timeout(_timeout);
     _decode(res);
   }
 
-  // ─── GENERIC MODULE API ───────────────────────────────────────────────────
+  // ─── GENERIC MODULE API ────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> createModuleRecord({
     required String module,
@@ -314,7 +334,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
     final res = await http.post(
       Uri.parse('$_baseUrl/$module/create'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     final data = _decode(res);
     return data['data'] as Map<String, dynamic>;
   }
@@ -343,7 +363,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
         'moduleFile', file.path, contentType: mimeType,
       ));
     }
-    final streamed = await request.send();
+    final streamed = await request.send().timeout(_uploadTimeout);
     final res = await http.Response.fromStream(streamed);
     _decode(res);
   }
@@ -355,7 +375,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
     final res = await http.get(
       Uri.parse('$_baseUrl/$module/$recordId/data'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res)['data'] as Map<String, dynamic>;
   }
 
@@ -365,7 +385,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
     final res = await http.get(
       Uri.parse('$_baseUrl/$module/my'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res)['data'] as List<dynamic>;
   }
 
@@ -378,7 +398,7 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       Uri.parse('$_baseUrl/$module/$recordId/ai-report'),
       headers: await _headers(),
       body: jsonEncode(report),
-    );
+    ).timeout(_timeout);
     final body = _decode(res);
     return body['pdfUrl'] as String?;
   }
@@ -392,11 +412,13 @@ static const String _baseUrl = 'https://empora-mzy4.onrender.com/api';
       final aiReport = data['aiReport'] as Map<String, dynamic>?;
       final stored   = aiReport?['pdfUrl'] as String?;
       if (stored != null && stored.isNotEmpty) {
-return '$_baseUrl$stored';      }
+        return '$_baseUrl$stored';
+      }
     } catch (_) {}
-return '$_baseUrl/$module/$recordId/report/pdf';  }
+    return '$_baseUrl/$module/$recordId/report/pdf';
+  }
 
-  // ─── CHATBOT ──────────────────────────────────────────────────────────────
+  // ─── CHATBOT ───────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> sendChatMessage({
     required String module,
@@ -406,7 +428,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
       Uri.parse('$_baseUrl/chat/$module/message'),
       headers: await _headers(),
       body: jsonEncode({'message': message}),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
@@ -416,9 +438,9 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     final res = await http.get(
       Uri.parse('$_baseUrl/chat/$module/history'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res);
-  } 
+  }
 
   static Future<void> clearChatHistory({
     required String module,
@@ -426,11 +448,11 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     final res = await http.delete(
       Uri.parse('$_baseUrl/chat/$module/clear'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     _decode(res);
   }
 
-  // ─── Legacy ───────────────────────────────────────────────────────────────
+  // ─── Legacy ────────────────────────────────────────────────────────────────
   static Future<void> uploadComments({
     required String recordId,
     File? file,
@@ -450,14 +472,17 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     } else if (file != null) {
       request.files.add(await http.MultipartFile.fromPath('commentsFile', file.path, contentType: mimeType));
     }
-    final streamed = await request.send();
+    final streamed = await request.send().timeout(_uploadTimeout);
     final res = await http.Response.fromStream(streamed);
     _decode(res);
   }
-  // ─── Pricing ─────────────────────────────────────────────────────────────
+
+  // ─── Pricing ──────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> getPublicPricing() async {
-    final res = await http.get(Uri.parse('$_baseUrl/payment/pricing'));
+    final res = await http
+        .get(Uri.parse('$_baseUrl/payment/pricing'))
+        .timeout(_timeout);
     return _decode(res);
   }
 
@@ -465,7 +490,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     final res = await http.get(
       Uri.parse('$_baseUrl/admin/pricing'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
@@ -477,11 +502,11 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
       Uri.parse('$_baseUrl/admin/pricing'),
       headers: await _headers(),
       body: jsonEncode({'monthly': monthly, 'yearly': yearly}),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
-  // ─── Payment ─────────────────────────────────────────────────────────────
+  // ─── Payment ──────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> createPaymentOrder({
     required String plan,
@@ -490,7 +515,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
       Uri.parse('$_baseUrl/payment/create-order'),
       headers: await _headers(),
       body: jsonEncode({'plan': plan}),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
@@ -509,7 +534,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
         'razorpay_signature':  signature,
         'plan':                plan,
       }),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
@@ -517,11 +542,11 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     final res = await http.get(
       Uri.parse('$_baseUrl/payment/status'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
-  // ─── Founder Profile ─────────────────────────────────────────────────────
+  // ─── Founder Profile ──────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> saveFounderProfile(
       Map<String, dynamic> data) async {
@@ -529,7 +554,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
       Uri.parse('$_baseUrl/auth/founder-profile'),
       headers: await _headers(),
       body: jsonEncode(data),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
@@ -537,7 +562,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     final res = await http.get(
       Uri.parse('$_baseUrl/auth/founder-profile'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
@@ -558,13 +583,13 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     }
   }
 
-  // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
+  // ─── NOTIFICATIONS ─────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> getNotifications() async {
     final res = await http.get(
       Uri.parse('$_baseUrl/notifications'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res);
   }
 
@@ -573,7 +598,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
       final res = await http.get(
         Uri.parse('$_baseUrl/notifications/unread-count'),
         headers: await _headers(),
-      );
+      ).timeout(_timeout);
       final data = _decode(res);
       return data['unreadCount'] as int? ?? 0;
     } catch (_) {
@@ -585,7 +610,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     final res = await http.put(
       Uri.parse('$_baseUrl/notifications/$id/read'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     _decode(res);
   }
 
@@ -593,7 +618,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     final res = await http.put(
       Uri.parse('$_baseUrl/notifications/read-all'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     _decode(res);
   }
 
@@ -601,7 +626,7 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     final res = await http.delete(
       Uri.parse('$_baseUrl/notifications/$id'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     _decode(res);
   }
 
@@ -609,17 +634,17 @@ return '$_baseUrl/$module/$recordId/report/pdf';  }
     final res = await http.delete(
       Uri.parse('$_baseUrl/notifications/clear-all'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     _decode(res);
   }
 
-  // ─── MY SUBMISSIONS ───────────────────────────────────────────────────────
+  // ─── MY SUBMISSIONS ────────────────────────────────────────────────────────
 
   static Future<List<dynamic>> getMySubmissions() async {
     final res = await http.get(
       Uri.parse('$_baseUrl/fund/my'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout);
     return _decode(res)['data'] as List<dynamic>? ?? [];
   }
 

@@ -1,6 +1,8 @@
+// lib/screens/splash_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:empora/theme/app_theme.dart';
+import 'package:empora/services/api_service.dart';
 
 class SplashScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -17,31 +19,57 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _scaleAnim;
   late Animation<double> _slideAnim;
 
+  // Tracks whether the server warm-up ping is still running
+  bool _isWakingServer = true;
+
   @override
   void initState() {
     super.initState();
+
+    // ── Animations ────────────────────────────────────────────────────────────
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     );
 
     _fadeAnim = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.6, curve: Curves.easeOut)),
+      CurvedAnimation(
+          parent: _controller,
+          curve: const Interval(0.0, 0.6, curve: Curves.easeOut)),
     );
 
     _scaleAnim = Tween<double>(begin: 0.6, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.7, curve: Curves.elasticOut)),
+      CurvedAnimation(
+          parent: _controller,
+          curve: const Interval(0.0, 0.7, curve: Curves.elasticOut)),
     );
 
     _slideAnim = Tween<double>(begin: 30, end: 0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.3, 0.8, curve: Curves.easeOut)),
+      CurvedAnimation(
+          parent: _controller,
+          curve: const Interval(0.3, 0.8, curve: Curves.easeOut)),
     );
 
     _controller.forward();
 
-    Future.delayed(const Duration(milliseconds: 2800), () {
-      if (mounted) widget.onComplete();
-    });
+    // ── Server warm-up + splash timer ─────────────────────────────────────────
+    // Fire the warm-up ping immediately so Render wakes up while the
+    // splash animation plays. The splash waits for BOTH the 2.8 s minimum
+    // AND the ping to finish before proceeding — preventing "Network error"
+    // on the very first login attempt.
+    _initAndProceed();
+  }
+
+  Future<void> _initAndProceed() async {
+    // Run the minimum splash duration and the warm-up ping in parallel.
+    await Future.wait([
+      Future.delayed(const Duration(milliseconds: 2800)),
+      ApiService.warmUp().then((_) {
+        if (mounted) setState(() => _isWakingServer = false);
+      }),
+    ]);
+
+    if (mounted) widget.onComplete();
   }
 
   @override
@@ -64,7 +92,7 @@ class _SplashScreenState extends State<SplashScreen>
         ),
         child: Stack(
           children: [
-            // Background geometric decoration
+            // ── Background geometric decoration ────────────────────────────
             Positioned(
               top: -60,
               right: -60,
@@ -102,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             ),
 
-            // Main content
+            // ── Main content ──────────────────────────────────────────────
             Center(
               child: AnimatedBuilder(
                 animation: _controller,
@@ -182,18 +210,36 @@ class _SplashScreenState extends State<SplashScreen>
 
                       const SizedBox(height: 80),
 
-                      // Loading indicator
+                      // Loading indicator + server status label
                       FadeTransition(
                         opacity: _fadeAnim,
-                        child: SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white.withOpacity(0.7),
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white.withOpacity(0.7),
+                                ),
+                                strokeWidth: 2,
+                              ),
                             ),
-                            strokeWidth: 2,
-                          ),
+                            const SizedBox(height: 14),
+                            // Show a subtle "connecting" hint while warm-up runs
+                            AnimatedOpacity(
+                              opacity: _isWakingServer ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 400),
+                              child: Text(
+                                'Connecting to server...',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.5),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -202,7 +248,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             ),
 
-            // Bottom version
+            // ── Bottom version ─────────────────────────────────────────────
             Positioned(
               bottom: 40,
               left: 0,
