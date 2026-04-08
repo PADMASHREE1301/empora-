@@ -20,7 +20,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -94,7 +94,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           tabs: const [
             Tab(icon: Icon(Icons.dashboard_outlined,         size: 18), text: 'Overview'),
             Tab(icon: Icon(Icons.people_outline,              size: 18), text: 'Users'),
-            Tab(icon: Icon(Icons.inbox_outlined,              size: 18), text: 'Submissions'),
             Tab(icon: Icon(Icons.sell_outlined,               size: 18), text: 'Pricing'),
             Tab(icon: Icon(Icons.bar_chart_rounded,           size: 18), text: 'Revenue'),
             Tab(icon: Icon(Icons.pending_actions_rounded,     size: 18), text: 'Pending'),
@@ -106,7 +105,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         children: const [
           _OverviewTab(),
           _UsersTab(),
-          _SubmissionsTab(),
           _PricingTab(),
           _RevenueTab(),
           _PendingUsersTab(),

@@ -58,12 +58,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final res = await ApiService.getPublicPricing();
       final pricing = res['pricing'] as Map<String, dynamic>;
       if (mounted) setState(() {
-        _monthlyPrice  = (pricing['monthly'] as num).toInt();
-        _yearlyPrice   = (pricing['yearly']  as num).toInt();
+        _monthlyPrice = (pricing['monthly'] as num).toInt();
+        _yearlyPrice  = (pricing['yearly']  as num).toInt();
       });
-    } catch (_) {
-      if (mounted) setState(() {});
-    }
+    } catch (_) {}
   }
 
   // ── Pay ───────────────────────────────────────────────────────────────────
@@ -103,7 +101,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
       }
     } catch (e) {
       setState(() => _loading = false);
-      // Show real error for debugging
       _err('Order failed: ${e.toString().replaceAll('ApiException: ', '')}');
     }
   }
@@ -116,8 +113,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
         orderId: oid, paymentId: pid, signature: sig, plan: _plan,
       );
       if (!mounted) return;
+
       if (r['success'] == true) {
-        await context.read<AuthProvider>().fetchProfile();
+        final auth = context.read<AuthProvider>();
+
+        // FIX: Apply the updated user from the verify response immediately.
+        // This ensures the UI reflects membership right away without waiting
+        // for a separate /me request to complete.
+        if (r['user'] != null) {
+          auth.updateUserFromPaymentResponse(r['user'] as Map<String, dynamic>);
+        }
+
+        // Also do a full re-fetch in the background to guarantee sync with DB.
+        auth.fetchProfile();
+
         _success();
       } else {
         _err(r['message'] ?? 'Verification failed.');
@@ -129,7 +138,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  // ── Web dialog (simple — no dart:js) ──────────────────────────────────────
+  // ── Web dialog ────────────────────────────────────────────────────────────
   void _webDialog(String keyId, String orderId, int amount,
       String name, String email) {
     showDialog(
@@ -162,8 +171,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // Note: On web, Razorpay JS in index.html handles checkout
-              // Payment verification happens server-side via webhook
               _err('Please use the mobile app for payments, or contact support.');
             },
             style: ElevatedButton.styleFrom(
@@ -323,7 +330,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
               const SizedBox(width: 14),
               Expanded(child: _PlanCard(
                 label: 'Yearly', price: '₹$_yearlyPrice', period: '/year',
-                description: 'Billed yearly', badge: _yearlyPrice < _monthlyPrice * 12 ? 'Save ${(((_monthlyPrice * 12 - _yearlyPrice) / (_monthlyPrice * 12)) * 100).round()}%' : null,
+                description: 'Billed yearly',
+                badge: _yearlyPrice < _monthlyPrice * 12
+                    ? 'Save ${(((_monthlyPrice * 12 - _yearlyPrice) / (_monthlyPrice * 12)) * 100).round()}%'
+                    : null,
                 isSelected: _plan == 'yearly',
                 onTap: () => setState(() => _plan = 'yearly'),
               )),

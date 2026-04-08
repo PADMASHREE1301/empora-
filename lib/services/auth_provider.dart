@@ -44,7 +44,6 @@ class AppUser {
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
-    // Support both 'id' and '_id' from different endpoints
     final rawId = json['id'] ?? json['_id'] ?? '';
     return AppUser(
       id:                     rawId.toString(),
@@ -171,7 +170,6 @@ class AuthProvider extends ChangeNotifier {
       final data = await ApiService.login(email: email, password: password);
 
       if (data['success'] == true) {
-        // Token already saved by ApiService.login()
         if (data['user'] != null) {
           _user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
         }
@@ -185,7 +183,6 @@ class AuthProvider extends ChangeNotifier {
       return false;
     } on ApiException catch (e) {
       _error = e.message;
-      // Parse error code from ApiException message for PENDING_APPROVAL etc.
       if (e.statusCode == 403) {
         if (e.message.contains('pending') || e.message.contains('approval')) {
           _errorCode = 'PENDING_APPROVAL';
@@ -207,7 +204,6 @@ class AuthProvider extends ChangeNotifier {
     try {
       await ApiService.logout();
     } catch (_) {
-      // Clear locally even if the server call fails
       await ApiService.clearToken();
     }
     _user      = null;
@@ -217,6 +213,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // ── Fetch current profile from /api/auth/me ───────────────────────────────
+  // Call this: on app init, after payment, and on app resume.
   Future<void> fetchProfile() async {
     final loggedIn = await ApiService.isLoggedIn();
     if (!loggedIn) return;
@@ -229,18 +226,25 @@ class AuthProvider extends ChangeNotifier {
       }
     } on ApiException catch (e) {
       if (e.statusCode == 401) {
-        // Token expired — clear session silently
         _user = null;
         await ApiService.clearToken();
         notifyListeners();
       }
-      // Other errors: keep existing state, don't crash
     } catch (_) {
-      // Network error on startup — keep existing state
+      // Network error — keep existing state
     }
   }
 
-  // ── Update local user (e.g. after membership upgrade) ────────────────────
+  // ── Update user directly from payment verify response ─────────────────────
+  // FIX: After payment succeeds, the verify response already contains the
+  // updated user object. Apply it immediately so the UI reflects membership
+  // without waiting for a /me round-trip to complete.
+  void updateUserFromPaymentResponse(Map<String, dynamic> userJson) {
+    _user = AppUser.fromJson(userJson);
+    notifyListeners();
+  }
+
+  // ── Update local user (e.g. after any profile change) ────────────────────
   void updateUser(AppUser updated) {
     _user = updated;
     notifyListeners();
