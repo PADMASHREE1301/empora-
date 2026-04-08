@@ -8,6 +8,11 @@ const cookieParser = require('cookie-parser');
 const path         = require('path');
 
 dotenv.config();
+// server.js — add after dotenv.config()
+if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+  console.error('❌ RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is missing in .env');
+  process.exit(1);
+}
 
 const app = express();
 
