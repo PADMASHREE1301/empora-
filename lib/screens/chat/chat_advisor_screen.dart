@@ -127,7 +127,7 @@ class AdvisorConfigs {
   static AdvisorConfig risk = const AdvisorConfig(
     moduleKey: 'risk',
     title: 'Risk Advisor',
-    subtitle: 'Business Risk Management',
+    subtitle: 'Business Risk & Continuity Planning',
     icon: Icons.shield_outlined,
     color: Color(0xFFE74C3C),
     greeting: 'I\'m your Risk Management Advisor. I help founders identify, assess, and mitigate business risks before they become problems.\n\nLet\'s analyse the risks in your business today.',
@@ -143,7 +143,7 @@ class AdvisorConfigs {
   static AdvisorConfig project = const AdvisorConfig(
     moduleKey: 'project',
     title: 'Project Advisor',
-    subtitle: 'Plan, Track & Deliver Projects',
+    subtitle: 'Planning, Milestones & Delivery',
     icon: Icons.task_alt_outlined,
     color: Color(0xFF16A085),
     greeting: 'I\'m your Project Management Advisor. I help founders plan, execute, and deliver projects on time and within budget.\n\nWhat project challenge can I help you with?',
@@ -153,7 +153,7 @@ class AdvisorConfigs {
       _SuggestionItem(emoji: '⏱️', title: 'Deadline tracking', subtitle: 'Stay on schedule', prompt: 'What methods help me ensure my team meets project deadlines consistently?'),
       _SuggestionItem(emoji: '💸', title: 'Budget control', subtitle: 'Avoid overspending', prompt: 'How do I control project costs and avoid budget overruns?'),
     ],
-    quickChips: ['Project planning', 'Team management', 'Agile methods', 'Budget control', 'Risk in projects'],
+    quickChips: ['Set up my project roadmap', 'Define OKRs for my team', 'Agile methods', 'Budget control', 'Risk in projects'],
   );
 
   static AdvisorConfig cyber = const AdvisorConfig(
@@ -230,7 +230,6 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
         });
       }
     } catch (_) {}
-    // Add greeting after profile loads
     if (mounted && _messages.isEmpty) {
       setState(() {
         _messages.add(_ChatMessage(
@@ -242,11 +241,9 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
   }
 
   String _buildPersonalisedGreeting() {
-    final industry = _industry;
-    final stage    = _stage;
     String base = widget.config.greeting;
-    if (industry.isNotEmpty || stage.isNotEmpty) {
-      base += '\n\n💼 I can see you\'re in ${industry.isNotEmpty ? industry : 'your industry'}${stage.isNotEmpty ? ' at $stage stage' : ''}. I\'ll personalise my advice accordingly.';
+    if (_industry.isNotEmpty || _stage.isNotEmpty) {
+      base += '\n\n💼 I can see you\'re in ${_industry.isNotEmpty ? _industry : 'your industry'}${_stage.isNotEmpty ? ' at $_stage stage' : ''}. I\'ll personalise my advice accordingly.';
     }
     return base;
   }
@@ -254,6 +251,8 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
   Future<void> _send(String text) async {
     if (text.trim().isEmpty) return;
     _ctrl.clear();
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
     setState(() {
       _messages.add(_ChatMessage(text: text, isUser: true));
       _isTyping = true;
@@ -272,18 +271,22 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
         onTimeout: () => throw TimeoutException('Request timed out after 30 seconds'),
       );
       final reply = result['message'] as String? ?? result['reply'] as String? ?? 'I\'m here to help! Could you please provide more details about your question?';
-      setState(() {
-        _isTyping = false;
-        _messages.add(_ChatMessage(text: reply, isUser: false));
-      });
+      if (mounted) {
+        setState(() {
+          _isTyping = false;
+          _messages.add(_ChatMessage(text: reply, isUser: false));
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isTyping = false;
-        _messages.add(_ChatMessage(
-          text: 'I\'m having trouble connecting right now. Please check your internet connection and try again.',
-          isUser: false,
-        ));
-      });
+      if (mounted) {
+        setState(() {
+          _isTyping = false;
+          _messages.add(_ChatMessage(
+            text: 'I\'m having trouble connecting right now. Please check your internet connection and try again.',
+            isUser: false,
+          ));
+        });
+      }
     }
     _scrollToBottom();
   }
@@ -314,146 +317,161 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
     final stage    = _stage;
 
     return Scaffold(
+      // ── FIX 1: resizeToAvoidBottomInset: true (default) lets Flutter
+      // automatically shrink the body when the keyboard appears.
+      // The Scaffold was wrapped in a plain Column before — that doesn't
+      // participate in keyboard-inset logic, so the input bar got buried.
+      resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFFF0F2F7),
-      body: Column(children: [
+      body: Column(
+        children: [
 
-        // ── HEADER ──────────────────────────────────────────────────────────
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF0D1B4B), Color(0xFF1A3A7C)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+          // ── HEADER ──────────────────────────────────────────────────────────
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF0D1B4B), Color(0xFF1A3A7C)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
-          ),
-          child: SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Row(children: [
-                // Back button
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    width: 36, height: 36,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Row(children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 16),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 44, height: 44,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                     ),
-                    child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 16),
+                    child: Icon(cfg.icon, color: cfg.color, size: 22),
                   ),
-                ),
-                const SizedBox(width: 12),
-
-                // Advisor icon
-                Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(13),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                  ),
-                  child: Icon(cfg.icon, color: cfg.color, size: 22),
-                ),
-                const SizedBox(width: 12),
-
-                // Title + online status
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(cfg.title,
-                        style: GoogleFonts.montserrat(
-                          color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-                      Row(children: [
-                        Container(
-                          width: 7, height: 7,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF27AE60), shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 5),
-                        Text('AI powered · Always available',
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(cfg.title,
+                          style: GoogleFonts.montserrat(
+                            color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+                        Text(cfg.subtitle,
                           style: GoogleFonts.inter(
                             color: Colors.white.withValues(alpha: 0.65), fontSize: 11)),
-                      ]),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ]),
+                  // Clear chat button
+                  GestureDetector(
+                    onTap: _confirmClear,
+                    child: Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 18),
+                    ),
+                  ),
+                ]),
+              ),
             ),
           ),
-        ),
 
-        // ── CHAT AREA ────────────────────────────────────────────────────────
-        Expanded(
-          child: ListView.builder(
-            controller: _scroll,
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
-            itemCount: _messages.length + (_isTyping ? 1 : 0) + (_showSuggestions ? 1 : 0),
-            itemBuilder: (context, index) {
-
-              // Profile context bar (first item)
-              if (index == 0 && _showSuggestions && (industry.isNotEmpty || stage.isNotEmpty)) {
-                return _buildContextBar(industry, stage);
-              }
-
-              // Suggestions grid (second item if showing)
-              final msgOffset = (_showSuggestions && (industry.isNotEmpty || stage.isNotEmpty)) ? 1 : 0;
-              if (_showSuggestions && index == msgOffset + _messages.length) {
-                return _buildSuggestions(cfg);
-              }
-
-              // Typing indicator
-              if (_isTyping && index == msgOffset + _messages.length) {
-                return _buildTypingIndicator();
-              }
-
-              final msg = _messages[index - msgOffset];
-              return _buildMessage(msg);
-            },
-          ),
-        ),
-
-        // ── QUICK CHIPS ──────────────────────────────────────────────────────
-        Container(
-          color: Colors.white,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-            child: Row(
-              children: cfg.quickChips.map((chip) => GestureDetector(
-                onTap: () => _send(chip),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F2F7),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Text(chip,
-                    style: GoogleFonts.inter(
-                      fontSize: 12, color: const Color(0xFF1A3A7C),
-                      fontWeight: FontWeight.w500)),
-                ),
-              )).toList(),
+          // ── CHAT AREA ────────────────────────────────────────────────────────
+          // FIX 2: Expanded fills all remaining space between the header and
+          // the input bar. When the keyboard rises, Scaffold shrinks the body,
+          // so this Expanded naturally gets smaller — the input bar stays visible.
+          Expanded(
+            child: GestureDetector(
+              // FIX 3: Tap anywhere in the chat area to dismiss the keyboard.
+              onTap: () => FocusScope.of(context).unfocus(),
+              behavior: HitTestBehavior.opaque,
+              child: ListView.builder(
+                controller: _scroll,
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                itemCount: _messages.length + (_isTyping ? 1 : 0) + (_showSuggestions ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == 0 && _showSuggestions && (industry.isNotEmpty || stage.isNotEmpty)) {
+                    return _buildContextBar(industry, stage);
+                  }
+                  final msgOffset = (_showSuggestions && (industry.isNotEmpty || stage.isNotEmpty)) ? 1 : 0;
+                  if (_showSuggestions && index == msgOffset + _messages.length) {
+                    return _buildSuggestions(cfg);
+                  }
+                  if (_isTyping && index == msgOffset + _messages.length) {
+                    return _buildTypingIndicator();
+                  }
+                  final msg = _messages[index - msgOffset];
+                  return _buildMessage(msg);
+                },
+              ),
             ),
           ),
-        ),
 
-        // ── INPUT BAR ────────────────────────────────────────────────────────
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-          child: SafeArea(
-            top: false,
+          // ── QUICK CHIPS ──────────────────────────────────────────────────────
+          Container(
+            color: Colors.white,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              child: Row(
+                children: cfg.quickChips.map((chip) => GestureDetector(
+                  onTap: () => _send(chip),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F2F7),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Text(chip,
+                      style: GoogleFonts.inter(
+                        fontSize: 12, color: const Color(0xFF1A3A7C),
+                        fontWeight: FontWeight.w500)),
+                  ),
+                )).toList(),
+              ),
+            ),
+          ),
+
+          // ── INPUT BAR ────────────────────────────────────────────────────────
+          // FIX 4: Replaced the inner SafeArea(top: false) with
+          // MediaQuery.of(context).viewInsets.bottom padding so the bar sits
+          // exactly above the keyboard on every device.
+          Container(
+            color: Colors.white,
+            padding: EdgeInsets.fromLTRB(
+              14,
+              10,
+              14,
+              // Use the larger of: bottom system padding OR 10px default
+              MediaQuery.of(context).padding.bottom > 0
+                  ? MediaQuery.of(context).padding.bottom
+                  : 10,
+            ),
             child: Row(children: [
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFFF0F2F7),
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    border: Border.all(color: cfg.color.withValues(alpha: 0.4)),
                   ),
                   child: TextField(
                     controller: _ctrl,
@@ -466,6 +484,11 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                     ),
                     onSubmitted: _send,
                     textInputAction: TextInputAction.send,
+                    // FIX 5: maxLines: null + minLines: 1 allows the text field
+                    // to expand for long messages instead of staying single-line
+                    // and overflowing the bottom.
+                    maxLines: 4,
+                    minLines: 1,
                   ),
                 ),
               ),
@@ -486,9 +509,37 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
               ),
             ]),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
+  }
+
+  // ── Confirm clear ─────────────────────────────────────────────────────────
+  Future<void> _confirmClear() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Clear Chat', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700)),
+        content: Text('Delete this conversation?', style: GoogleFonts.inter()),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ApiService.clearChatHistory(module: widget.config.moduleKey);
+    } catch (_) {}
+    setState(() {
+      _messages.clear();
+      _showSuggestions = true;
+      _messages.add(_ChatMessage(text: _buildPersonalisedGreeting(), isUser: false));
+    });
   }
 
   Widget _buildContextBar(String industry, String stage) {
@@ -570,7 +621,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
   }
 
   Widget _buildMessage(_ChatMessage msg) {
-    final isUser = msg.isUser;
+    final isUser  = msg.isUser;
     final isError = !isUser && (msg.text.contains('❌') || msg.text.contains('📶') || msg.text.contains('⏱️') || msg.text.contains('🔐') || msg.text.contains('🛠️') || msg.text.contains('🔧'));
 
     return Padding(
@@ -624,15 +675,14 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                     ),
                   ),
                 ),
-                // Retry button for failed messages
                 if (isError && _lastFailedMessage.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 6, left: 4),
                     child: GestureDetector(
                       onTap: () {
-                        final msg = _lastFailedMessage;
+                        final m = _lastFailedMessage;
                         setState(() => _lastFailedMessage = '');
-                        _send(msg);
+                        _send(m);
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
