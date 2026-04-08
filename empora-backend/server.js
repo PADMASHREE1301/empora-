@@ -33,6 +33,12 @@ app.use('/api/auth',  require('./routes/authRoutes'));
 // Admin routes — NO approval gate (admin has its own guard: verifyToken + adminOnly)
 app.use('/api/admin', require('./routes/adminRoutes'));
 
+// ── Payment — verifyToken only, NO approvalGate ───────────────────────────────
+// Reason: any logged-in user (even pending-approval) must be able to pay.
+// The approvalGate would block them before they can upgrade, which is wrong.
+// Payment routes internally use verifyToken via paymentRoutes.js already.
+app.use('/api/payment', require('./routes/paymentRoutes'));
+
 // ── All routes below require: valid token + admin-approved account ─────────────
 // The approvalGate middleware blocks anyone with isApproved: false or isActive: false.
 
@@ -41,9 +47,6 @@ app.use('/api/fund',
 
 app.use('/api/ai',
   verifyToken, approvalGate, require('./routes/aiRoutes'));
-
-app.use('/api/payment',
-  verifyToken, approvalGate, require('./routes/paymentRoutes'));
 
 app.use('/api/chat',
   verifyToken, approvalGate, require('./routes/chatRoutes'));
