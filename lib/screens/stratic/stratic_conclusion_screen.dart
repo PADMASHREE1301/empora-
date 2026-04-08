@@ -1,18 +1,19 @@
 // lib/screens/stratic/stratic_conclusion_screen.dart
+// FIXED: Uses Anthropic Claude API for real AI analysis from uploaded documents.
+// Key fix: removed silent fake "50% MODERATE" fallback that was ignoring document content.
 
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../theme/app_theme.dart';
 import '../../models/stratic_model.dart';
 import '../../services/api_service.dart';
-import '../../services/groq_service.dart';
 
 class StraticConclusionScreen extends StatefulWidget {
   final StraticState state;
@@ -42,9 +43,9 @@ class _StraticConclusionScreenState
     'Reading team profile...',
     'Analysing business development...',
     'Evaluating operations & policy...',
-    'Reviewing challenges...',
+    'Reviewing challenges & risk...',
     'Computing strategy score...',
-    'Sending to Groq AI...',
+    'Sending to Claude AI for deep analysis...',
     'Saving strategy report to MongoDB...',
   ];
 
@@ -84,7 +85,6 @@ class _StraticConclusionScreenState
     });
   }
 
-  // ── FIX: creates record in 'stratics' collection ───────────────────────────
   Future<bool> _ensureRecord() async {
     if (widget.state.recordId != null) return true;
     try {
@@ -97,6 +97,125 @@ class _StraticConclusionScreenState
     }
   }
 
+  // ── Build detailed prompt with ALL extracted document content ──────────────
+  String _buildPromptFromExtracted(Map<String, dynamic> extracted) {
+    final buffer = StringBuffer();
+    buffer.writeln('You are a senior business strategist with 20+ years of experience.');
+    buffer.writeln('Analyse the following 7 strategy documents submitted by a company.');
+    buffer.writeln('Base your ENTIRE analysis on the actual content provided below.');
+    buffer.writeln('');
+
+    final moduleLabels = {
+      'team':        'TEAM PROFILE',
+      'businessDev': 'BUSINESS DEVELOPMENT',
+      'risk':        'RISK OVERVIEW',
+      'operation':   'OPERATIONS',
+      'policy':      'POLICY',
+      'challenges':  'CHALLENGES',
+      'profile':     'COMPANY PROFILE',
+    };
+
+    bool hasAnyContent = false;
+    for (final entry in extracted.entries) {
+      final label = moduleLabels[entry.key] ?? entry.key.toUpperCase();
+      final content = entry.value?.toString().trim() ?? '';
+      if (content.isNotEmpty && content != 'null') {
+        buffer.writeln('=== $label ===');
+        // Cap at 1500 chars per doc to fit within token limits across 7 docs
+        buffer.writeln(content.length > 1500 ? content.substring(0, 1500) + '...' : content);
+        buffer.writeln('');
+        hasAnyContent = true;
+      }
+    }
+
+    if (!hasAnyContent) {
+      buffer.writeln('[No document text could be extracted from uploaded files.]');
+      buffer.writeln('Provide guidance based solely on the module names listed above.');
+    }
+
+    buffer.writeln(r'''
+Return ONLY this JSON (no markdown, no extra text, valid JSON only):
+{
+  "verdict": "STRONG" | "MODERATE" | "WEAK",
+  "summary": "3-4 sentence executive summary referencing specific content from the documents",
+  "overallScore": 0.0-1.0,
+  "teamScore": 0.0-1.0,
+  "operationScore": 0.0-1.0,
+  "policyScore": 0.0-1.0,
+  "challengeScore": 0.0-1.0,
+  "strengths": ["Specific strength from document content","Specific strength 2","Specific strength 3"],
+  "risks": ["Specific risk identified in documents","Specific risk 2","Specific risk 3"],
+  "opportunities": ["Opportunity based on documents","Opportunity 2","Opportunity 3"],
+  "recommendations": ["Actionable recommendation 1","Actionable recommendation 2","Actionable recommendation 3"],
+  "finalRecommendation": "3-4 sentence paragraph with specific, actionable next steps derived from the actual documents."
+}
+
+CRITICAL: Never use placeholder text like "Documents uploaded", "retry", "API key" etc.
+All output must reference actual content from the submitted documents.
+''');
+
+    return buffer.toString();
+  }
+
+  // ── Call Anthropic Claude API ──────────────────────────────────────────────
+  Future<String> _callAnthropicApi(String prompt) async {
+    final response = await http.post(
+      Uri.parse('https://api.anthropic.com/v1/messages'),
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      body: jsonEncode({
+        'model': 'claude-sonnet-4-20250514',
+        'max_tokens': 2000,
+        'system': 'You are a senior business strategist. Respond with ONLY valid JSON — no markdown, no preamble. Your response must be parseable by jsonDecode().',
+        'messages': [
+          {'role': 'user', 'content': prompt}
+        ],
+      }),
+    ).timeout(const Duration(seconds: 90));
+
+    if (response.statusCode == 200) {
+      final data    = jsonDecode(response.body) as Map<String, dynamic>;
+      final content = (data['content'] as List<dynamic>?)
+          ?.whereType<Map<String, dynamic>>()
+          .firstWhere((b) => b['type'] == 'text', orElse: () => {})['text'] as String? ?? '';
+      if (content.isEmpty) throw Exception('Empty response from Claude API');
+      return content;
+    } else {
+      throw Exception('Claude API error ${response.statusCode}: ${response.body}');
+    }
+  }
+
+  // ── Groq fallback (if GROQ_API_KEY is set at build time) ──────────────────
+  Future<String> _callGroqFallback(String prompt) async {
+    const groqKey = String.fromEnvironment('GROQ_API_KEY');
+    if (groqKey.isEmpty) throw Exception('No Groq API key');
+    final response = await http.post(
+      Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $groqKey',
+      },
+      body: jsonEncode({
+        'model': 'mixtral-8x7b-32768',
+        'messages': [
+          {'role': 'system', 'content': 'You are a senior business strategist. Respond ONLY with valid JSON. No markdown, no preamble.'},
+          {'role': 'user', 'content': prompt},
+        ],
+        'temperature': 0.2,
+        'max_tokens': 2000,
+      }),
+    ).timeout(const Duration(seconds: 60));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['choices']?[0]?['message']?['content'] as String? ?? '';
+    } else {
+      throw Exception('Groq API error ${response.statusCode}');
+    }
+  }
+
   Future<void> _generate() async {
     setState(() {
       _isGenerating = true;
@@ -105,35 +224,71 @@ class _StraticConclusionScreenState
       _step         = 0;
       _stepLabel    = _steps[0];
     });
+
     try {
       await _ensureRecord();
 
+      // Step 0: Fetch document text extracted from server
       _setStep(0);
       Map<String, dynamic> extracted = {};
+
       if (widget.state.recordId != null) {
         try {
-          // ── FIX: uses new module-specific endpoint ──────────────────────────
           final data = await ApiService.getModuleData(
             module:   'stratic',
             recordId: widget.state.recordId!,
           );
+
+          // Try 'extracted' key first
           extracted = (data['extracted'] as Map<String, dynamic>?) ?? {};
-        } catch (_) {}
+
+          // If empty, try 'files' key (different backend response format)
+          if (extracted.isEmpty) {
+            final files = data['files'] as Map<String, dynamic>?;
+            if (files != null) {
+              extracted = Map<String, dynamic>.fromEntries(
+                files.entries.map((e) {
+                  final v = e.value;
+                  final text = (v is Map)
+                      ? (v['extractedText'] ?? v['text'] ?? v['content'] ?? '').toString()
+                      : v.toString();
+                  return MapEntry(e.key, text);
+                }),
+              );
+            }
+          }
+
+          // Try 'documents' key as last resort
+          if (extracted.isEmpty) {
+            final docs = data['documents'] as Map<String, dynamic>?;
+            if (docs != null) extracted = docs;
+          }
+        } catch (_) {
+          // Network or parsing error — continue with empty map
+        }
       }
 
+      // Steps 1–5: Process each module
       for (int i = 1; i <= 5; i++) {
         _setStep(i);
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 600));
         if (!mounted) return;
       }
 
+      // Step 6: Call AI
       _setStep(6);
-      final prompt = extracted.isNotEmpty
-          ? widget.state.buildPrompt(extracted)
-          : widget.state.buildFallbackPrompt();
+      final prompt = _buildPromptFromExtracted(extracted);
 
-      final raw = await GroqService.complete(prompt);
-      String js = raw.trim();
+      String rawResponse;
+      try {
+        rawResponse = await _callAnthropicApi(prompt);
+      } catch (_) {
+        // Try Groq as fallback
+        rawResponse = await _callGroqFallback(prompt);
+      }
+
+      // Clean JSON fences if present
+      String js = rawResponse.trim();
       if (js.startsWith('```')) {
         js = js
             .replaceAll(RegExp(r'^```[a-z]*\n?'), '')
@@ -141,29 +296,27 @@ class _StraticConclusionScreenState
             .trim();
       }
 
+      // Parse JSON
       Map<String, dynamic> jsonData;
       try {
         jsonData = jsonDecode(js) as Map<String, dynamic>;
       } catch (_) {
-        // JSON parse failed — use offline report silently
-        widget.state.aiReport = StraticAiReport.fromJson('{}', {
-          'verdict': 'MODERATE', 'summary': 'Analysis complete. Unable to parse full AI response — showing estimated report.',
-          'overallScore': 0.5, 'teamScore': 0.5, 'operationScore': 0.5, 'policyScore': 0.5, 'challengeScore': 0.5,
-          'strengths': ['Documents uploaded successfully'], 'risks': ['Retry for full analysis'],
-          'opportunities': ['Full analysis available on retry'], 'recommendations': ['Retry analysis'],
-          'finalRecommendation': 'Please retry the analysis for a complete AI-powered report.',
-        });
         if (!mounted) return;
-        setState(() { _isGenerating = false; _isDone = true; _errorMsg = null; });
+        setState(() {
+          _isGenerating = false;
+          _isDone       = false;
+          _errorMsg     = 'AI returned an unexpected format. Please tap "Generate AI Strategy Report" to try again.';
+        });
         return;
       }
-      final report = StraticAiReport.fromJson(raw, jsonData);
+
+      final report = StraticAiReport.fromJson(rawResponse, jsonData);
       widget.state.aiReport = report;
 
+      // Step 7: Save to MongoDB
       _setStep(7);
       if (widget.state.recordId != null) {
         try {
-          // ── FIX: saves to 'stratics' collection via new endpoint ────────────
           await ApiService.saveModuleAiReport(
             module:   'stratic',
             recordId: widget.state.recordId!,
@@ -183,56 +336,20 @@ class _StraticConclusionScreenState
             },
           );
         } catch (_) {
-          // DB save failed silently — report is still shown to user
+          // DB save failed silently — report still shown to user
         }
       }
 
       if (!mounted) return;
-      setState(() { _isGenerating = false; _isDone = true; });
+      setState(() { _isGenerating = false; _isDone = true; _errorMsg = null; });
 
-    } on GroqException catch (_) {
-      // Groq API error (invalid key, quota) — generate offline report silently
+    } catch (e) {
       if (!mounted) return;
-      widget.state.aiReport = StraticAiReport.fromJson('{}', {
-        'verdict':             'MODERATE',
-        'summary':             'AI analysis is temporarily unavailable. Your documents have been uploaded and saved. Please try again later for a full AI-powered analysis.',
-        'overallScore':        0.5,
-        'teamScore':           0.5,
-        'operationScore':      0.5,
-        'policyScore':         0.5,
-        'challengeScore':      0.5,
-        'strengths':           ['Documents successfully uploaded', 'All 7 strategy modules submitted'],
-        'risks':               ['AI analysis pending — retry when service is available'],
-        'opportunities':       ['Full AI analysis available once API key is configured'],
-        'recommendations':     ['Retry the analysis when AI service is restored'],
-        'finalRecommendation': 'Your strategy documents have been saved. The AI analysis service is temporarily unavailable. Please retry to get a full AI-powered strategy report.',
-      });
+      final msg = e.toString();
       setState(() {
         _isGenerating = false;
-        _isDone       = true;
-        _errorMsg     = null; // no error banner shown
-      });
-    } catch (_) {
-      // Any other error — generate offline report silently
-      if (!mounted) return;
-      widget.state.aiReport = StraticAiReport.fromJson('{}', {
-        'verdict':             'MODERATE',
-        'summary':             'AI analysis is temporarily unavailable. Your documents have been uploaded and saved. Please try again later.',
-        'overallScore':        0.5,
-        'teamScore':           0.5,
-        'operationScore':      0.5,
-        'policyScore':         0.5,
-        'challengeScore':      0.5,
-        'strengths':           ['Documents successfully uploaded', 'All strategy modules submitted'],
-        'risks':               ['AI analysis pending — retry when service is available'],
-        'opportunities':       ['Full AI analysis available once API key is configured'],
-        'recommendations':     ['Retry the analysis when AI service is restored'],
-        'finalRecommendation': 'Your strategy documents have been saved. Please retry to get a full AI-powered strategy report.',
-      });
-      setState(() {
-        _isGenerating = false;
-        _isDone       = true;
-        _errorMsg     = null; // no error banner
+        _isDone       = false;
+        _errorMsg     = 'Analysis failed: ${msg.length > 150 ? msg.substring(0, 150) + '...' : msg}\n\nPlease tap "Generate AI Strategy Report" to retry.';
       });
     }
   }
@@ -438,14 +555,14 @@ class _StraticConclusionScreenState
   Widget _errBanner() => Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-        color: AppTheme.warning.withValues(alpha: 0.08),
+        color: AppTheme.error.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3))),
-    child: Row(children: [
-      const Icon(Icons.info_outline, color: AppTheme.warning, size: 16),
+        border: Border.all(color: AppTheme.error.withValues(alpha: 0.3))),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Icon(Icons.error_outline, color: AppTheme.error, size: 16),
       const SizedBox(width: 8),
       Expanded(child: Text(_errorMsg!,
-          style: GoogleFonts.inter(fontSize: 12, color: AppTheme.warning))),
+          style: GoogleFonts.inter(fontSize: 12, color: AppTheme.error))),
     ]),
   );
 
@@ -487,13 +604,14 @@ class _StraticConclusionScreenState
 
   Widget _report(StraticAiReport r) {
     final vUpper = r.verdict.toUpperCase();
-    final vColor = vUpper.contains('STRONG') || (vUpper.contains('COMPLIANT') && !vUpper.contains('NON'))
+    final vColor = vUpper.contains('STRONG')
         ? AppTheme.success
-        : vUpper.contains('PARTIAL') || vUpper.contains('MODERATE')
+        : vUpper.contains('MODERATE')
             ? AppTheme.warning
             : AppTheme.error;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Overall verdict card
       Container(
         width: double.infinity,
         padding: const EdgeInsets.all(22),
@@ -527,6 +645,8 @@ class _StraticConclusionScreenState
         ]),
       ),
       const SizedBox(height: 16),
+
+      // Score breakdown
       _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sTitle('Score Breakdown'), const SizedBox(height: 14),
         _bar('Overall Strategy', r.overallScore,   _teal),
@@ -535,10 +655,13 @@ class _StraticConclusionScreenState
         _bar('Policy',           r.policyScore,    const Color(0xFF2E7D32)),
         _bar('Challenges',       r.challengeScore, const Color(0xFFE67E22)),
       ])),
-      if (r.strengths.isNotEmpty)      _bullets('Strengths',       r.strengths,       AppTheme.success),
-      if (r.risks.isNotEmpty)          _bullets('Key Risks',       r.risks,           AppTheme.error),
-      if (r.opportunities.isNotEmpty)  _bullets('Opportunities',   r.opportunities,   AppTheme.accent),
-      if (r.recommendations.isNotEmpty)_bullets('Recommendations', r.recommendations, _teal),
+
+      if (r.strengths.isNotEmpty)       _bullets('Strengths',       r.strengths,       AppTheme.success),
+      if (r.risks.isNotEmpty)           _bullets('Key Risks',       r.risks,           AppTheme.error),
+      if (r.opportunities.isNotEmpty)   _bullets('Opportunities',   r.opportunities,   AppTheme.accent),
+      if (r.recommendations.isNotEmpty) _bullets('Recommendations', r.recommendations, _teal),
+
+      // Final recommendation
       Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
@@ -561,7 +684,6 @@ class _StraticConclusionScreenState
       ),
       const SizedBox(height: 16),
 
-      // ── Abstract card ─────────────────────────────────────────────────────
       _abstractCard(r),
       const SizedBox(height: 16),
 
@@ -596,7 +718,7 @@ class _StraticConclusionScreenState
           label: Text('Regenerate Report',
               style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
           style: OutlinedButton.styleFrom(
-              foregroundColor: _teal, side: BorderSide(color: _teal),
+              foregroundColor: _teal, side: const BorderSide(color: _teal),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         ),
@@ -606,10 +728,10 @@ class _StraticConclusionScreenState
 
   Widget _abstractCard(StraticAiReport r) {
     final items = [
-      if (r.strengths.isNotEmpty)    _AbstractItem(icon: Icons.check_circle_outline,   color: AppTheme.success, label: 'Top Strength',     text: r.strengths.first),
-      if (r.risks.isNotEmpty)        _AbstractItem(icon: Icons.warning_amber_rounded,   color: AppTheme.error,   label: 'Key Risk',         text: r.risks.first),
-      if (r.opportunities.isNotEmpty)_AbstractItem(icon: Icons.lightbulb_outline_rounded, color: AppTheme.warning, label: 'Top Opportunity',  text: r.opportunities.first),
-      if (r.recommendations.isNotEmpty)_AbstractItem(icon: Icons.checklist_rounded,     color: _teal,            label: 'Top Recommendation', text: r.recommendations.first),
+      if (r.strengths.isNotEmpty)       _AbstractItem(icon: Icons.check_circle_outline,     color: AppTheme.success, label: 'Top Strength',       text: r.strengths.first),
+      if (r.risks.isNotEmpty)           _AbstractItem(icon: Icons.warning_amber_rounded,     color: AppTheme.error,   label: 'Key Risk',           text: r.risks.first),
+      if (r.opportunities.isNotEmpty)   _AbstractItem(icon: Icons.lightbulb_outline_rounded, color: AppTheme.warning, label: 'Top Opportunity',    text: r.opportunities.first),
+      if (r.recommendations.isNotEmpty) _AbstractItem(icon: Icons.checklist_rounded,         color: _teal,            label: 'Top Recommendation', text: r.recommendations.first),
     ];
     return Container(
       padding: const EdgeInsets.all(18),
@@ -657,7 +779,7 @@ class _StraticConclusionScreenState
                   style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
                       color: item.color, letterSpacing: 0.3)),
               const SizedBox(height: 2),
-              Text(item.text, maxLines: 2, overflow: TextOverflow.ellipsis,
+              Text(item.text, maxLines: 3, overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textPrimary, height: 1.4)),
             ])),
           ]),
@@ -693,13 +815,13 @@ class _StraticConclusionScreenState
             ),
             const Divider(height: 1),
             Expanded(child: ListView(controller: ctrl, padding: const EdgeInsets.all(20), children: [
-              _viewSection('Verdict',              r.verdict,                    Icons.verified_outlined),
-              _viewSection('Summary',              r.summary,                    Icons.description_outlined),
-              _viewSection('Strengths',            r.strengths.join('\n'),       Icons.thumb_up_outlined),
-              _viewSection('Key Risks',            r.risks.join('\n'),           Icons.warning_amber_rounded),
-              _viewSection('Opportunities',        r.opportunities.join('\n'),   Icons.lightbulb_outline_rounded),
-              _viewSection('Recommendations',      r.recommendations.join('\n'), Icons.checklist_rounded),
-              _viewSection('Final Recommendation', r.finalRecommendation,        Icons.star_outline_rounded),
+              _viewSection('Verdict',              r.verdict,                       Icons.verified_outlined),
+              _viewSection('Summary',              r.summary,                       Icons.description_outlined),
+              _viewSection('Strengths',            '• ' + r.strengths.join('\n• '), Icons.thumb_up_outlined),
+              _viewSection('Key Risks',            '• ' + r.risks.join('\n• '),     Icons.warning_amber_rounded),
+              _viewSection('Opportunities',        '• ' + r.opportunities.join('\n• '), Icons.lightbulb_outline_rounded),
+              _viewSection('Recommendations',      '• ' + r.recommendations.join('\n• '), Icons.checklist_rounded),
+              _viewSection('Final Recommendation', r.finalRecommendation,           Icons.star_outline_rounded),
             ])),
           ]),
         ),
@@ -733,7 +855,6 @@ class _StraticConclusionScreenState
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName  = 'Empora_Strategy_Report_$timestamp.pdf';
 
-      // ── PDF colours ──────────────────────────────────────────────────────
       final darkColor  = PdfColor.fromHex('054B60');
       final tealColor  = PdfColor.fromHex('0D6E8A');
       final blueColor  = PdfColor.fromHex('1A3A6B');
@@ -743,36 +864,25 @@ class _StraticConclusionScreenState
       final errorClr   = PdfColor.fromHex('C0392B');
       final grayColor  = PdfColor.fromHex('64748B');
       final accentClr  = PdfColor.fromHex('E67E22');
+      final verdictClr = r.overallScore >= 0.7 ? successClr : r.overallScore >= 0.45 ? goldColor : errorClr;
 
-      final verdictClr = r.overallScore >= 0.7
-          ? successClr : r.overallScore >= 0.45 ? goldColor : errorClr;
-
-      // ── Helpers ──────────────────────────────────────────────────────────
       pw.Widget secTitle(String text, {PdfColor? bg}) => pw.Container(
         color: bg ?? darkColor,
         padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         margin: const pw.EdgeInsets.only(bottom: 8, top: 14),
-        child: pw.Text(text,
-            style: pw.TextStyle(fontSize: 12,
-                fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+        child: pw.Text(text, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
       );
 
       pw.Widget scoreBar(String label, double score, PdfColor color) =>
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
               pw.Text(label, style: pw.TextStyle(fontSize: 10, color: grayColor)),
-              pw.Text('${(score * 100).toInt()}%',
-                  style: pw.TextStyle(fontSize: 10,
-                      fontWeight: pw.FontWeight.bold, color: darkColor)),
+              pw.Text('${(score * 100).toInt()}%', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: darkColor)),
             ]),
             pw.SizedBox(height: 4),
             pw.Stack(children: [
-              pw.Container(height: 8, width: double.infinity,
-                  decoration: pw.BoxDecoration(
-                      color: lightGray, borderRadius: pw.BorderRadius.circular(4))),
-              pw.Container(height: 8, width: 460 * score.clamp(0.0, 1.0),
-                  decoration: pw.BoxDecoration(
-                      color: color, borderRadius: pw.BorderRadius.circular(4))),
+              pw.Container(height: 8, width: double.infinity, decoration: pw.BoxDecoration(color: lightGray, borderRadius: pw.BorderRadius.circular(4))),
+              pw.Container(height: 8, width: 460 * score.clamp(0.0, 1.0), decoration: pw.BoxDecoration(color: color, borderRadius: pw.BorderRadius.circular(4))),
             ]),
             pw.SizedBox(height: 8),
           ]);
@@ -780,15 +890,12 @@ class _StraticConclusionScreenState
       pw.Widget bullet(String text, PdfColor dotColor) => pw.Padding(
         padding: const pw.EdgeInsets.only(bottom: 5),
         child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Container(width: 6, height: 6,
-              margin: const pw.EdgeInsets.only(top: 4, right: 8),
+          pw.Container(width: 6, height: 6, margin: const pw.EdgeInsets.only(top: 4, right: 8),
               decoration: pw.BoxDecoration(color: dotColor, shape: pw.BoxShape.circle)),
-          pw.Expanded(child: pw.Text(text,
-              style: pw.TextStyle(fontSize: 10, color: darkColor))),
+          pw.Expanded(child: pw.Text(text, style: pw.TextStyle(fontSize: 10, color: darkColor))),
         ]),
       );
 
-      // ── Build PDF ────────────────────────────────────────────────────────
       final pdf = pw.Document();
       pdf.addPage(pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -797,132 +904,66 @@ class _StraticConclusionScreenState
           color: darkColor,
           padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-            pw.Text('EMPORA AI STRATEGY REPORT',
-                style: pw.TextStyle(fontSize: 13,
-                    fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
-            pw.Text('STRATEGY ANALYSIS',
-                style: pw.TextStyle(fontSize: 11, color: goldColor)),
+            pw.Text('EMPORA AI STRATEGY REPORT', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+            pw.Text('STRATEGY ANALYSIS', style: pw.TextStyle(fontSize: 11, color: goldColor)),
           ]),
         ),
         footer: (ctx) => pw.Container(
           padding: const pw.EdgeInsets.only(top: 8),
-          decoration: const pw.BoxDecoration(
-              border: pw.Border(top: pw.BorderSide(color: PdfColors.grey300, width: 0.5))),
+          decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: PdfColors.grey300, width: 0.5))),
           child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-            pw.Text('Generated by Empora AI',
-                style: pw.TextStyle(fontSize: 8, color: grayColor)),
-            pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
-                style: pw.TextStyle(fontSize: 8, color: grayColor)),
+            pw.Text('Generated by Empora AI', style: pw.TextStyle(fontSize: 8, color: grayColor)),
+            pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}', style: pw.TextStyle(fontSize: 8, color: grayColor)),
           ]),
         ),
         build: (_) => [
-          // Verdict banner
           pw.Container(
             width: double.infinity,
             padding: const pw.EdgeInsets.symmetric(vertical: 18, horizontal: 20),
             margin: const pw.EdgeInsets.only(top: 12, bottom: 16),
             decoration: pw.BoxDecoration(
-              color: r.overallScore >= 0.7
-                  ? PdfColor.fromHex('E8F5E9')
-                  : r.overallScore >= 0.45
-                      ? PdfColor.fromHex('FFF8E1')
-                      : PdfColor.fromHex('FFF3E0'),
+              color: r.overallScore >= 0.7 ? PdfColor.fromHex('E8F5E9') : r.overallScore >= 0.45 ? PdfColor.fromHex('FFF8E1') : PdfColor.fromHex('FFF3E0'),
               borderRadius: pw.BorderRadius.circular(10),
               border: pw.Border.all(color: verdictClr, width: 2),
             ),
             child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
-              pw.Text(r.verdict,
-                  style: pw.TextStyle(fontSize: 28,
-                      fontWeight: pw.FontWeight.bold, color: verdictClr)),
+              pw.Text(r.verdict, style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold, color: verdictClr)),
               pw.SizedBox(height: 4),
-              pw.Text('${(r.overallScore * 100).toInt()}% Overall Strategy Score',
-                  style: pw.TextStyle(fontSize: 14,
-                      fontWeight: pw.FontWeight.bold, color: verdictClr)),
+              pw.Text('${(r.overallScore * 100).toInt()}% Overall Strategy Score', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: verdictClr)),
               pw.SizedBox(height: 4),
-              pw.Text(
-                  'Generated ${DateTime.now().toLocal().toString().substring(0, 16)}',
-                  style: pw.TextStyle(fontSize: 9, color: grayColor)),
+              pw.Text('Generated ${DateTime.now().toLocal().toString().substring(0, 16)}', style: pw.TextStyle(fontSize: 9, color: grayColor)),
             ]),
           ),
-
-          // Summary
           secTitle('EXECUTIVE SUMMARY', bg: blueColor),
-          pw.Container(
-            padding: const pw.EdgeInsets.all(12),
-            decoration: pw.BoxDecoration(
-                color: lightGray, borderRadius: pw.BorderRadius.circular(6)),
-            child: pw.Text(r.summary,
-                style: pw.TextStyle(fontSize: 10, color: darkColor, lineSpacing: 4)),
-          ),
-
-          // Score breakdown
+          pw.Container(padding: const pw.EdgeInsets.all(12), decoration: pw.BoxDecoration(color: lightGray, borderRadius: pw.BorderRadius.circular(6)),
+              child: pw.Text(r.summary, style: pw.TextStyle(fontSize: 10, color: darkColor, lineSpacing: 4))),
           secTitle('SCORE BREAKDOWN', bg: tealColor),
-          pw.Container(
-            padding: const pw.EdgeInsets.all(12),
-            decoration: pw.BoxDecoration(
-                color: lightGray, borderRadius: pw.BorderRadius.circular(6)),
-            child: pw.Column(children: [
-              scoreBar('Overall Strategy', r.overallScore,   darkColor),
-              scoreBar('Team',             r.teamScore,      blueColor),
-              scoreBar('Operations',       r.operationScore, tealColor),
-              scoreBar('Policy',           r.policyScore,    PdfColor.fromHex('2E7D32')),
-              scoreBar('Challenges',       r.challengeScore, accentClr),
-            ]),
-          ),
-
-          // Strengths
-          if (r.strengths.isNotEmpty) ...[
-            secTitle('STRENGTHS', bg: PdfColor.fromHex('1A7A4A')),
-            ...r.strengths.map((s) => bullet(s, successClr)),
-          ],
-
-          // Risks
-          if (r.risks.isNotEmpty) ...[
-            secTitle('KEY RISKS', bg: errorClr),
-            ...r.risks.map((s) => bullet(s, errorClr)),
-          ],
-
-          // Opportunities
-          if (r.opportunities.isNotEmpty) ...[
-            secTitle('OPPORTUNITIES', bg: goldColor),
-            ...r.opportunities.map((s) => bullet(s, goldColor)),
-          ],
-
-          // Recommendations
-          if (r.recommendations.isNotEmpty) ...[
-            secTitle('RECOMMENDATIONS', bg: blueColor),
-            ...r.recommendations.map((s) => bullet(s, blueColor)),
-          ],
-
-          // Final recommendation
+          pw.Container(padding: const pw.EdgeInsets.all(12), decoration: pw.BoxDecoration(color: lightGray, borderRadius: pw.BorderRadius.circular(6)),
+              child: pw.Column(children: [
+                scoreBar('Overall Strategy', r.overallScore, darkColor),
+                scoreBar('Team', r.teamScore, blueColor),
+                scoreBar('Operations', r.operationScore, tealColor),
+                scoreBar('Policy', r.policyScore, PdfColor.fromHex('2E7D32')),
+                scoreBar('Challenges', r.challengeScore, accentClr),
+              ])),
+          if (r.strengths.isNotEmpty) ...[secTitle('STRENGTHS', bg: PdfColor.fromHex('1A7A4A')), ...r.strengths.map((s) => bullet(s, successClr))],
+          if (r.risks.isNotEmpty) ...[secTitle('KEY RISKS', bg: errorClr), ...r.risks.map((s) => bullet(s, errorClr))],
+          if (r.opportunities.isNotEmpty) ...[secTitle('OPPORTUNITIES', bg: goldColor), ...r.opportunities.map((s) => bullet(s, goldColor))],
+          if (r.recommendations.isNotEmpty) ...[secTitle('RECOMMENDATIONS', bg: blueColor), ...r.recommendations.map((s) => bullet(s, blueColor))],
           secTitle('FINAL RECOMMENDATION', bg: darkColor),
           pw.Container(
             padding: const pw.EdgeInsets.all(12),
-            decoration: pw.BoxDecoration(
-                color: PdfColor.fromHex('F0F9FF'),
-                borderRadius: pw.BorderRadius.circular(6),
-                border: pw.Border.all(color: PdfColor.fromHex('B2D8E8'), width: 1.5)),
-            child: pw.Text(r.finalRecommendation,
-                style: pw.TextStyle(fontSize: 10, color: darkColor, lineSpacing: 4)),
+            decoration: pw.BoxDecoration(color: PdfColor.fromHex('F0F9FF'), borderRadius: pw.BorderRadius.circular(6), border: pw.Border.all(color: PdfColor.fromHex('B2D8E8'), width: 1.5)),
+            child: pw.Text(r.finalRecommendation, style: pw.TextStyle(fontSize: 10, color: darkColor, lineSpacing: 4)),
           ),
           pw.SizedBox(height: 16),
-          pw.Center(child: pw.Text('For informational purposes only.',
-              style: pw.TextStyle(fontSize: 8, color: grayColor))),
+          pw.Center(child: pw.Text('For informational purposes only.', style: pw.TextStyle(fontSize: 8, color: grayColor))),
         ],
       ));
 
-      // ── Save / Download ──────────────────────────────────────────────────
       final pdfBytes = await pdf.save();
-
       if (kIsWeb) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('PDF ready! Web download requires a web-enabled build.',
-                style: GoogleFonts.inter(color: Colors.white)),
-            backgroundColor: AppTheme.warning, behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ));
-        }
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF ready! Web download requires a web-enabled build.', style: GoogleFonts.inter(color: Colors.white)), backgroundColor: AppTheme.warning, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))));
       } else {
         File file;
         if (Platform.isAndroid) {
@@ -936,55 +977,35 @@ class _StraticConclusionScreenState
         }
         await file.writeAsBytes(pdfBytes);
       }
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Row(children: [
-          const Icon(Icons.picture_as_pdf, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Expanded(child: Text('PDF saved to Downloads: $fileName',
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
-              maxLines: 2, overflow: TextOverflow.ellipsis)),
-        ]),
+        content: Row(children: [const Icon(Icons.picture_as_pdf, color: Colors.white, size: 18), const SizedBox(width: 8), Expanded(child: Text('PDF saved: $fileName', style: GoogleFonts.inter(color: Colors.white, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis))]),
         backgroundColor: AppTheme.success, behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), duration: const Duration(seconds: 4),
       ));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Download failed: $e',
-            style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: AppTheme.error, behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download failed: $e', style: GoogleFonts.inter(color: Colors.white)), backgroundColor: AppTheme.error, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))));
     }
   }
 
-
-
   Widget _card(Widget child) => Container(
     margin: const EdgeInsets.only(bottom: 14), padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.divider)),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.divider)),
     child: child,
   );
 
-  Widget _sTitle(String t) => Text(t,
-      style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary));
+  Widget _sTitle(String t) => Text(t, style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary));
 
   Widget _bar(String label, double score, Color color) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
     child: Column(children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text(label, style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSecondary)),
-        Text('${(score * 100).toInt()}%', style: GoogleFonts.inter(
-            fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+        Text('${(score * 100).toInt()}%', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
       ]),
       const SizedBox(height: 5),
-      ClipRRect(borderRadius: BorderRadius.circular(10),
-          child: LinearProgressIndicator(value: score, backgroundColor: AppTheme.divider, color: color, minHeight: 7)),
+      ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(value: score, backgroundColor: AppTheme.divider, color: color, minHeight: 7)),
     ]),
   );
 
@@ -995,9 +1016,7 @@ class _StraticConclusionScreenState
       ...items.map((s) => Padding(
         padding: const EdgeInsets.only(bottom: 7),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 6, height: 6,
-              margin: const EdgeInsets.only(top: 5, right: 10),
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(width: 6, height: 6, margin: const EdgeInsets.only(top: 5, right: 10), decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           Expanded(child: Text(s, style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textPrimary, height: 1.5))),
         ]),
       )),
