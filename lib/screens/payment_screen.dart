@@ -19,9 +19,11 @@ class PaymentScreen extends StatefulWidget {
 
 class _PaymentScreenState extends State<PaymentScreen> {
   late String _plan;
-  int       _monthlyPrice = 999;
-  int       _yearlyPrice  = 7999;
-  bool      _loading   = false;
+  int  _monthlyPrice   = 999;    // fallback only
+  int  _yearlyPrice    = 7999;   // fallback only
+  bool _pricingLoaded  = false;
+  bool _pricingError   = false;  // ← NEW: track fetch failures visibly
+  bool _loading        = false;
   Razorpay? _razorpay;
 
   @override
@@ -53,19 +55,45 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   void _onWallet(ExternalWalletResponse r) {}
 
+  // ── FIX: Surfaces errors instead of silently falling back ─────────────────
   Future<void> _loadPricing() async {
+    setState(() { _pricingError = false; });
     try {
-      final res = await ApiService.getPublicPricing();
-      final pricing = res['pricing'] as Map<String, dynamic>;
-      if (mounted) setState(() {
-        _monthlyPrice = (pricing['monthly'] as num).toInt();
-        _yearlyPrice  = (pricing['yearly']  as num).toInt();
-      });
-    } catch (_) {}
+      final res     = await ApiService.getPublicPricing();
+      final pricing = res['pricing'] as Map<String, dynamic>?;
+      if (pricing == null) throw Exception('Pricing data missing in response');
+      if (mounted) {
+        setState(() {
+          _monthlyPrice  = (pricing['monthly'] as num).toInt();
+          _yearlyPrice   = (pricing['yearly']  as num).toInt();
+          _pricingLoaded = true;
+          _pricingError  = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[PaymentScreen] Pricing fetch failed: $e');
+      if (mounted) {
+        setState(() {
+          _pricingLoaded = false;
+          _pricingError  = true;   // ← show retry UI, don't silently use stale values
+        });
+      }
+    }
+  }
+
+  // ── Savings badge text (computed dynamically) ──────────────────────────────
+  String? get _yearlyBadge {
+    if (_monthlyPrice <= 0) return null;
+    final saving = ((_monthlyPrice * 12 - _yearlyPrice) / (_monthlyPrice * 12) * 100).round();
+    return saving > 0 ? 'Save $saving%' : null;
   }
 
   // ── Pay ───────────────────────────────────────────────────────────────────
   Future<void> _pay() async {
+    if (!_pricingLoaded) {
+      _err('Pricing not loaded yet. Please wait or retry.');
+      return;
+    }
     setState(() => _loading = true);
     try {
       final auth   = context.read<AuthProvider>();
@@ -117,9 +145,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (r['success'] == true) {
         final auth = context.read<AuthProvider>();
 
-        // FIX: Apply the updated user from the verify response immediately.
-        // This ensures the UI reflects membership right away without waiting
-        // for a separate /me request to complete.
+        // Apply the updated user from the verify response immediately so the UI
+        // reflects membership right away without waiting for a /me round-trip.
         if (r['user'] != null) {
           auth.updateUserFromPaymentResponse(r['user'] as Map<String, dynamic>);
         }
@@ -316,28 +343,62 @@ class _PaymentScreenState extends State<PaymentScreen> {
         Padding(
           padding: const EdgeInsets.all(20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+            // ── Pricing error / loading state ────────────────────────────────
+            if (_pricingError) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.error.withOpacity(0.08),
+                  border: Border.all(color: AppTheme.error.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppTheme.error, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text('Could not load pricing. Tap to retry.',
+                        style: GoogleFonts.inter(fontSize: 13, color: AppTheme.error)),
+                  ),
+                  TextButton(
+                    onPressed: _loadPricing,
+                    child: Text('Retry',
+                        style: GoogleFonts.inter(color: AppTheme.error, fontWeight: FontWeight.w700)),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 20),
+            ],
+
             // Plans
             Text('Choose Your Plan', style: GoogleFonts.montserrat(
                 fontSize: 17, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
             const SizedBox(height: 14),
-            Row(children: [
-              Expanded(child: _PlanCard(
-                label: 'Monthly', price: '₹$_monthlyPrice', period: '/month',
-                description: 'Billed monthly',
-                isSelected: _plan == 'monthly',
-                onTap: () => setState(() => _plan = 'monthly'),
-              )),
-              const SizedBox(width: 14),
-              Expanded(child: _PlanCard(
-                label: 'Yearly', price: '₹$_yearlyPrice', period: '/year',
-                description: 'Billed yearly',
-                badge: _yearlyPrice < _monthlyPrice * 12
-                    ? 'Save ${(((_monthlyPrice * 12 - _yearlyPrice) / (_monthlyPrice * 12)) * 100).round()}%'
-                    : null,
-                isSelected: _plan == 'yearly',
-                onTap: () => setState(() => _plan = 'yearly'),
-              )),
-            ]),
+
+            if (!_pricingLoaded && !_pricingError)
+              const Center(child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ))
+            else
+              Row(children: [
+                Expanded(child: _PlanCard(
+                  label: 'Monthly', price: '₹$_monthlyPrice', period: '/month',
+                  description: 'Billed monthly',
+                  isSelected: _plan == 'monthly',
+                  onTap: () => setState(() => _plan = 'monthly'),
+                )),
+                const SizedBox(width: 14),
+                Expanded(child: _PlanCard(
+                  label: 'Yearly', price: '₹$_yearlyPrice', period: '/year',
+                  description: 'Billed yearly',
+                  badge: _yearlyBadge,     // ← dynamic, not hardcoded
+                  isSelected: _plan == 'yearly',
+                  onTap: () => setState(() => _plan = 'yearly'),
+                )),
+              ]),
+
             const SizedBox(height: 28),
 
             // Features
@@ -351,7 +412,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             SizedBox(
               width: double.infinity, height: 56,
               child: ElevatedButton(
-                onPressed: _loading ? null : _pay,
+                onPressed: (_loading || !_pricingLoaded) ? null : _pay,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary, foregroundColor: Colors.white,
                   elevation: 0,

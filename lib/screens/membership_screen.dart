@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:empora/theme/app_theme.dart';
 import 'package:empora/screens/payment_screen.dart';
+import 'package:empora/services/api_service.dart';           // ← ADDED
 
 class MembershipScreen extends StatefulWidget {
   const MembershipScreen({super.key});
@@ -15,9 +16,44 @@ class MembershipScreen extends StatefulWidget {
 class _MembershipScreenState extends State<MembershipScreen> {
   String _plan = 'monthly';
 
+  // ── Pricing (loaded from API, falls back to defaults only if fetch fails) ──
+  int  _monthlyPrice  = 999;   // fallback
+  int  _yearlyPrice   = 7999;  // fallback
+  bool _pricingLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPricing();            // ← ADDED
+  }
+
+  // ── Fetch admin-controlled pricing ─────────────────────────────────────────
+  Future<void> _loadPricing() async {
+    try {
+      final res     = await ApiService.getPublicPricing();
+      final pricing = res['pricing'] as Map<String, dynamic>?;
+      if (pricing != null && mounted) {
+        setState(() {
+          _monthlyPrice  = (pricing['monthly'] as num).toInt();
+          _yearlyPrice   = (pricing['yearly']  as num).toInt();
+          _pricingLoaded = true;
+        });
+      }
+    } catch (e) {
+      // Keep hardcoded fallbacks; log for debugging in dev builds.
+      debugPrint('[MembershipScreen] Failed to load pricing: $e');
+    }
+  }
+
+  // ── Savings badge text (computed, not hardcoded) ───────────────────────────
+  String? get _yearlyBadge {
+    if (_monthlyPrice <= 0) return null;
+    final saving = ((_monthlyPrice * 12 - _yearlyPrice) / (_monthlyPrice * 12) * 100).round();
+    return saving > 0 ? 'Save $saving%' : null;
+  }
+
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
@@ -94,28 +130,41 @@ class _MembershipScreenState extends State<MembershipScreen> {
                       style: GoogleFonts.montserrat(
                           fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
                   const SizedBox(height: 14),
-                  Row(children: [
-                    Expanded(
-                      child: _PlanCard(
-                        title: 'Monthly',
-                        price: '₹999',
-                        period: '/month',
-                        isSelected: _plan == 'monthly',
-                        onTap: () => setState(() => _plan = 'monthly'),
+
+                  // ── Show shimmer while pricing loads ──────────────────────
+                  if (!_pricingLoaded)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: _PlanCard(
-                        title: 'Yearly',
-                        price: '₹7,999',
-                        period: '/year',
-                        badge: 'Save 33%',
-                        isSelected: _plan == 'yearly',
-                        onTap: () => setState(() => _plan = 'yearly'),
+                    )
+                  else
+                    Row(children: [
+                      Expanded(
+                        child: _PlanCard(
+                          title: 'Monthly',
+                          price: '₹$_monthlyPrice',
+                          period: '/month',
+                          description: 'Billed monthly',
+                          isSelected: _plan == 'monthly',
+                          onTap: () => setState(() => _plan = 'monthly'),
+                        ),
                       ),
-                    ),
-                  ]),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _PlanCard(
+                          title: 'Yearly',
+                          price: '₹$_yearlyPrice',
+                          period: '/year',
+                          description: 'Billed yearly',
+                          badge: _yearlyBadge,            // ← dynamic, not hardcoded
+                          isSelected: _plan == 'yearly',
+                          onTap: () => setState(() => _plan = 'yearly'),
+                        ),
+                      ),
+                    ]),
+
                   const SizedBox(height: 28),
 
                   // ── Upgrade Button ─────────────────────────────────────────
@@ -123,10 +172,13 @@ class _MembershipScreenState extends State<MembershipScreen> {
                     width: double.infinity,
                     height: 54,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => PaymentScreen(initialPlan: _plan)),
-                      ),
+                      onPressed: _pricingLoaded
+                          ? () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => PaymentScreen(initialPlan: _plan)),
+                              )
+                          : null, // disabled until price is confirmed
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primary,
                         foregroundColor: Colors.white,
@@ -179,18 +231,10 @@ class _MembershipScreenState extends State<MembershipScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.divider),
-        boxShadow: [
-          BoxShadow(color: AppTheme.primary.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
       ),
       child: Column(children: [
-        // Header
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(children: [
             Expanded(child: Text('Feature',
                 style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppTheme.textPrimary))),
@@ -230,14 +274,14 @@ class _MembershipScreenState extends State<MembershipScreen> {
   // ── AI Modules list ────────────────────────────────────────────────────────
   Widget _buildModulesList() {
     final modules = [
-      {'icon': Icons.calculate_outlined,     'title': 'Taxation Advisor',         'desc': 'CA & tax planning expert'},
-      {'icon': Icons.gavel_outlined,         'title': 'Land Legal Advisor',        'desc': 'Property & legal guidance'},
-      {'icon': Icons.account_balance_outlined,'title': 'Loans Advisor',            'desc': 'Banking & finance expert'},
-      {'icon': Icons.verified_outlined,      'title': 'Licence Advisor',           'desc': 'Compliance & licensing'},
-      {'icon': Icons.shield_outlined,        'title': 'Risk Management',           'desc': 'Risk assessment expert'},
-      {'icon': Icons.task_alt_outlined,      'title': 'Project Management',        'desc': 'Project planning advisor'},
-      {'icon': Icons.security_outlined,      'title': 'Cybersecurity Advisor',     'desc': 'Security & data protection'},
-      {'icon': Icons.corporate_fare_outlined,'title': 'Restructure Advisor',       'desc': 'Business restructuring'},
+      {'icon': Icons.calculate_outlined,      'title': 'Taxation Advisor',      'desc': 'CA & tax planning expert'},
+      {'icon': Icons.gavel_outlined,          'title': 'Land Legal Advisor',     'desc': 'Property & legal guidance'},
+      {'icon': Icons.account_balance_outlined,'title': 'Loans Advisor',          'desc': 'Banking & finance expert'},
+      {'icon': Icons.verified_outlined,       'title': 'Licence Advisor',        'desc': 'Compliance & licensing'},
+      {'icon': Icons.shield_outlined,         'title': 'Risk Management',        'desc': 'Risk assessment expert'},
+      {'icon': Icons.task_alt_outlined,       'title': 'Project Management',     'desc': 'Project planning advisor'},
+      {'icon': Icons.security_outlined,       'title': 'Cybersecurity Advisor',  'desc': 'Security & data protection'},
+      {'icon': Icons.corporate_fare_outlined, 'title': 'Restructure Advisor',    'desc': 'Business restructuring'},
     ];
 
     return Container(
@@ -287,12 +331,11 @@ class _MembershipScreenState extends State<MembershipScreen> {
       ),
     );
   }
-
 }
 
 // ─── Plan Card ─────────────────────────────────────────────────────────────────
 class _PlanCard extends StatelessWidget {
-  final String title, price, period;
+  final String title, price, period, description;
   final String? badge;
   final bool isSelected;
   final VoidCallback onTap;
@@ -301,6 +344,7 @@ class _PlanCard extends StatelessWidget {
     required this.title,
     required this.price,
     required this.period,
+    required this.description,
     this.badge,
     required this.isSelected,
     required this.onTap,
@@ -338,9 +382,7 @@ class _PlanCard extends StatelessWidget {
           ],
           Text(title,
               style: GoogleFonts.montserrat(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: AppTheme.textPrimary)),
+                  fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.textPrimary)),
           const SizedBox(height: 6),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(price,
@@ -352,8 +394,10 @@ class _PlanCard extends StatelessWidget {
                   style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 11)),
             ),
           ]),
+          const SizedBox(height: 4),
+          Text(description,
+              style: GoogleFonts.inter(color: AppTheme.textSecondary, fontSize: 11)),
           const SizedBox(height: 8),
-          // Selected indicator
           AnimatedOpacity(
             duration: const Duration(milliseconds: 200),
             opacity: isSelected ? 1.0 : 0.0,
