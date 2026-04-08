@@ -502,16 +502,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                               const SizedBox(height: 12),
 
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: Text('Forgot Password?',
-                                  style: GoogleFonts.inter(
-                                    color: AppTheme.primaryLight,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
+                              
 
                               const SizedBox(height: 24),
 
