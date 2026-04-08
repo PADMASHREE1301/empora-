@@ -204,7 +204,6 @@ exports.rejectSubmission = async (req, res) => {
 // ─── GET /api/admin/pricing ───────────────────────────────────────────────────
 exports.getPricing = async (req, res) => {
   try {
-    // If Settings model exists, use it — otherwise return defaults
     if (Settings) {
       const doc     = await Settings.findOne({ key: 'membership_pricing' });
       const pricing = doc?.value ?? { monthly: 999, yearly: 7999 };
@@ -251,6 +250,82 @@ exports.updatePricing = async (req, res) => {
     });
   } catch (err) {
     console.error('updatePricing error:', err);
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ─── GET /api/admin/pending-users ─────────────────────────────────────────────
+// Returns all users with isApproved: false, sorted newest first
+exports.getPendingUsers = async (req, res) => {
+  try {
+    const users = await User.find({ isApproved: false, role: { $ne: 'admin' } })
+      .select('-password')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, total: users.length, users });
+  } catch (err) {
+    console.error('getPendingUsers error:', err);
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ─── POST /api/admin/approve-user/:userId ─────────────────────────────────────
+// Approves a pending user — sets isApproved: true so approvalGate lets them through
+exports.approveUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user || user.role === 'admin') {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    user.isApproved = true;
+    user.isActive   = true;
+    await user.save({ validateBeforeSave: false });
+
+    // Optionally send a notification
+    try {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        userId:  user._id,
+        title:   '✅ Account Approved!',
+        message: 'Your EMPORA account has been approved. You can now log in and access all features.',
+        type:    'system',
+        icon:    'check_circle',
+        color:   '#27AE60',
+      });
+    } catch (_) { /* Notification model may not exist — ignore */ }
+
+    return res.status(200).json({
+      success: true,
+      message: `${user.name} has been approved.`,
+      user,
+    });
+  } catch (err) {
+    console.error('approveUser error:', err);
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ─── POST /api/admin/reject-user/:userId ──────────────────────────────────────
+// Rejects & deletes the pending user account
+exports.rejectUser = async (req, res) => {
+  try {
+    const { reason } = req.body;
+
+    const user = await User.findById(req.params.userId);
+    if (!user || user.role === 'admin') {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const name = user.name;
+    await User.findByIdAndDelete(req.params.userId);
+
+    return res.status(200).json({
+      success: true,
+      message: `${name} has been rejected and removed.`,
+    });
+  } catch (err) {
+    console.error('rejectUser error:', err);
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
