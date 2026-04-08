@@ -2,27 +2,32 @@
 
 const express    = require('express');
 const router     = express.Router();
-const admin      = require('../controllers/adminController');
 const { verifyToken, adminOnly } = require('../middleware/authMiddleware');
-const { getPendingUsers, approveUser, rejectUser } = require('../controllers/userApprovalController');
+const ctrl       = require('../controllers/adminController');
 
-const guard = [verifyToken, adminOnly];
+// All admin routes require: valid token + admin role
+router.use(verifyToken, adminOnly);
 
-router.get('/dashboard',                           ...guard, admin.getDashboardStats);
-router.get('/users',                               ...guard, admin.getAllUsers);
-router.patch('/users/:userId',                     ...guard, admin.updateUser);
-router.get('/submissions',                         ...guard, admin.getAllSubmissions);
-router.get('/submissions/:submissionId',           ...guard, admin.getSubmissionDetail);
-router.patch('/submissions/:submissionId/approve', ...guard, admin.approveSubmission);
-router.patch('/submissions/:submissionId/reject',  ...guard, admin.rejectSubmission);
+// ─── Dashboard & Stats ────────────────────────────────────────────────────────
+router.get('/dashboard',  ctrl.getDashboardStats);
 
-// ── Pricing ───────────────────────────────────────────────────────────────────
-router.get('/pricing',                             ...guard, admin.getPricing);
-router.put('/pricing',                             ...guard, admin.updatePricing);
+// ─── Users ───────────────────────────────────────────────────────────────────
+router.get('/users',           ctrl.getAllUsers);
+router.patch('/users/:userId', ctrl.updateUser);
 
-// ── User Approval ─────────────────────────────────────────────────────────────
-router.get('/pending-users',                       ...guard, getPendingUsers);
-router.post('/approve-user/:userId',               ...guard, approveUser);
-router.post('/reject-user/:userId',                ...guard, rejectUser);
+// ─── Pending user approval flow ───────────────────────────────────────────────
+router.get('/pending-users',             ctrl.getPendingUsers);
+router.post('/approve-user/:userId',     ctrl.approveUser);
+router.post('/reject-user/:userId',      ctrl.rejectUser);
+
+// ─── Submissions ──────────────────────────────────────────────────────────────
+router.get('/submissions',                                ctrl.getAllSubmissions);
+router.get('/submissions/:submissionId',                  ctrl.getSubmissionDetail);
+router.patch('/submissions/:submissionId/approve',        ctrl.approveSubmission);
+router.patch('/submissions/:submissionId/reject',         ctrl.rejectSubmission);
+
+// ─── Pricing ─────────────────────────────────────────────────────────────────
+router.get('/pricing',  ctrl.getPricing);
+router.put('/pricing',  ctrl.updatePricing);
 
 module.exports = router;
