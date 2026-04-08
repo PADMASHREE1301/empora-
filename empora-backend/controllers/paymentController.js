@@ -5,15 +5,42 @@ const crypto    = require('crypto');
 const User      = require('../models/User');
 const Settings  = require('../models/Settings');
 
-const razorpay = new Razorpay({
-  key_id:     process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+// ─────────────────────────────────────────────────────────────────────────────
+// !! THE ROOT CAUSE OF "Authentication failed" (500) !!
+//
+// The original code had:
+//   const razorpay = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, ... });
+// at the TOP of the file (module scope).
+//
+// On Render (and Railway/Heroku), when Node.js first requires() this module,
+// process.env vars may not be fully loaded yet — dotenv.config() in server.js
+// runs AFTER require() resolves the module graph. So Razorpay is instantiated
+// with key_id = undefined, key_secret = undefined → "Authentication failed".
+//
+// FIX: Create the Razorpay instance INSIDE each function that needs it.
+// By the time a request actually arrives and the function runs, process.env
+// is always fully populated.
+// ─────────────────────────────────────────────────────────────────────────────
+function getRazorpay() {
+  const keyId     = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (!keyId || !keySecret) {
+    throw new Error(
+      'Razorpay credentials missing. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your Render environment variables.'
+    );
+  }
+
+  return new Razorpay({
+    key_id:     keyId.trim(),
+    key_secret: keySecret.trim(),
+  });
+}
 
 // ── Default fallback prices in paise (₹ × 100) ───────────────────────────────
 const DEFAULT_PLANS = {
-  monthly: { amount: 99900,  label: 'Monthly', description: 'EMPORA Monthly Membership' },
-  yearly:  { amount: 799900, label: 'Yearly',  description: 'EMPORA Yearly Membership'  },
+  monthly: { amount: 39900,  label: 'Monthly', description: 'EMPORA Monthly Membership' },
+  yearly:  { amount: 399900, label: 'Yearly',  description: 'EMPORA Yearly Membership'  },
 };
 
 // ── Fetch live pricing from DB, fallback to defaults ─────────────────────────
@@ -34,7 +61,7 @@ async function getPlans() {
 exports.getPricing = async (req, res) => {
   try {
     const doc     = await Settings.findOne({ key: 'membership_pricing' });
-    const pricing = doc?.value ?? { monthly: 999, yearly: 7999 };
+    const pricing = doc?.value ?? { monthly: 399, yearly: 3999 };
     return res.status(200).json({ success: true, pricing });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Server error.' });
@@ -57,6 +84,9 @@ exports.createOrder = async (req, res) => {
 
     const planDetails = plans[plan];
 
+    // ── Create instance HERE (inside the function) — not at module scope ──
+    const razorpay = getRazorpay();
+
     const order = await razorpay.orders.create({
       amount:   planDetails.amount,
       currency: 'INR',
@@ -74,7 +104,7 @@ exports.createOrder = async (req, res) => {
       order_id: order.id,
       amount:   order.amount,
       currency: order.currency,
-      key_id:   process.env.RAZORPAY_KEY_ID,
+      key_id:   process.env.RAZORPAY_KEY_ID.trim(),
       plan,
       user: {
         name:  req.user.name,
@@ -84,7 +114,7 @@ exports.createOrder = async (req, res) => {
   } catch (err) {
     console.error('createOrder error:', err);
     const msg = err?.error?.description || err?.message || 'Failed to create payment order.';
-    return res.status(500).json({ success: false, message: msg, debug: err?.error || err?.message });
+    return res.status(500).json({ success: false, message: msg });
   }
 };
 
@@ -103,7 +133,7 @@ exports.verifyPayment = async (req, res) => {
     // Verify Razorpay signature
     const body     = razorpay_order_id + '|' + razorpay_payment_id;
     const expected = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET.trim())
       .update(body)
       .digest('hex');
 
@@ -125,8 +155,8 @@ exports.verifyPayment = async (req, res) => {
         membershipPlan:       plan,
         membershipStartDate:  now,
         membershipEndDate:    endDate,
-        membershipExpiry:     endDate,  // ← expiry checker uses this
-        isMember:             true,     // ← CRITICAL: Flutter reads this for module access
+        membershipExpiry:     endDate,
+        isMember:             true,
       },
       { new: true }
     );
@@ -154,7 +184,7 @@ exports.verifyPayment = async (req, res) => {
         membershipPlan:    user.membershipPlan,
         membershipEndDate: user.membershipEndDate,
         membershipExpiry:  user.membershipExpiry,
-        isMember:          true,          // ← Flutter auth_provider reads this
+        isMember:          true,
         isApproved:        user.isApproved ?? true,
         isAdmin:           user.role === 'admin' || user.isAdmin === true,
       },
@@ -198,8 +228,8 @@ exports.webhook = async (req, res) => {
           membershipPlan:       plan,
           membershipStartDate:  now,
           membershipEndDate:    endDate,
-          membershipExpiry:     endDate,  // ← expiry checker uses this
-          isMember:             true,     // ← CRITICAL for Flutter module access
+          membershipExpiry:     endDate,
+          isMember:             true,
           razorpayPaymentId:    payment.id,
         });
 
