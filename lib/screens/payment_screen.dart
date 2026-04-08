@@ -127,10 +127,71 @@ class _PaymentScreenState extends State<PaymentScreen> {
           'external':    {'wallets': ['paytm', 'phonepe', 'googlepay']},
         });
       }
+    } on ApiException catch (e) {
+      setState(() => _loading = false);
+      if (e.statusCode == 500) {
+        _showOrderError(
+          'Payment service is temporarily unavailable.\n\n'
+          'This is usually a server configuration issue. '
+          'Please try again in a few minutes or contact support.',
+        );
+      } else if (e.statusCode == 401 || e.statusCode == 403) {
+        _showOrderError(
+          'Session expired. Please log out and log back in, then try again.',
+        );
+      } else {
+        _showOrderError(e.message);
+      }
     } catch (e) {
       setState(() => _loading = false);
-      _err('Order failed: ${e.toString().replaceAll('ApiException: ', '')}');
+      _showOrderError(
+        'Could not reach the payment server. '
+        'Please check your internet connection and try again.',
+      );
     }
+  }
+
+  // ── Order error dialog with Retry button ──────────────────────────────────
+  void _showOrderError(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          const Icon(Icons.error_outline_rounded, color: Colors.red, size: 22),
+          const SizedBox(width: 8),
+          Text('Payment Failed',
+              style: GoogleFonts.montserrat(
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                  fontSize: 16)),
+        ]),
+        content: Text(message,
+            style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+                height: 1.5)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel',
+                style: GoogleFonts.inter(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () { Navigator.pop(context); _pay(); },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Try Again',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── Verify ────────────────────────────────────────────────────────────────
