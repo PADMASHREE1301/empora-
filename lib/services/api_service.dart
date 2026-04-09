@@ -402,6 +402,20 @@ class ApiService {
     final body = _decode(res);
     return body['pdfUrl'] as String?;
   }
+  // Paste inside the ApiService class, after saveModuleAiReport method.
+// This calls your backend to run AI analysis server-side (where the API key is safe).
+
+  static Future<Map<String, dynamic>> generateModuleAiReport({
+    required String module,
+    required String recordId,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/$module/$recordId/generate-ai'),
+      headers: await _headers(),
+    ).timeout(const Duration(seconds: 120)); // AI calls can be slow
+    return _decode(res)['data'] as Map<String, dynamic>;
+  }
+
 
   static Future<String?> getModulePdfUrl({
     required String module,

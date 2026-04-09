@@ -1,13 +1,12 @@
 // lib/screens/stratic/stratic_conclusion_screen.dart
-// FIXED: Uses Anthropic Claude API for real AI analysis from uploaded documents.
-// Key fix: removed silent fake "50% MODERATE" fallback that was ignoring document content.
+// FIX v2: AI analysis runs server-side via /api/stratic/:id/generate-ai
+// This avoids embedding API keys in the mobile app entirely.
 
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -39,14 +38,14 @@ class _StraticConclusionScreenState
   static const Color _teal = Color(0xFF0D6E8A);
 
   static const List<String> _steps = [
-    'Fetching strategy documents from server...',
+    'Connecting to analysis server...',
     'Reading team profile...',
     'Analysing business development...',
     'Evaluating operations & policy...',
     'Reviewing challenges & risk...',
-    'Computing strategy score...',
-    'Sending to Claude AI for deep analysis...',
-    'Saving strategy report to MongoDB...',
+    'Running AI analysis on all 7 documents...',
+    'Finalising strategy report...',
+    'Saving report to database...',
   ];
 
   static const List<_StraticModInfo> _modInfos = [
@@ -80,8 +79,8 @@ class _StraticConclusionScreenState
   void _setStep(int i) {
     if (!mounted) return;
     setState(() {
-      _step      = i;
-      _stepLabel = i < _steps.length ? _steps[i] : 'Finalising...';
+      _step      = i.clamp(0, _steps.length - 1);
+      _stepLabel = _steps[_step];
     });
   }
 
@@ -90,129 +89,10 @@ class _StraticConclusionScreenState
     try {
       final r = await ApiService.createModuleRecord(module: 'stratic');
       widget.state.recordId = r['_id'] as String?;
-      return true;
+      return widget.state.recordId != null;
     } catch (e) {
-      _snack('Error: $e', error: true);
+      _showError('Could not create record: $e');
       return false;
-    }
-  }
-
-  // ── Build detailed prompt with ALL extracted document content ──────────────
-  String _buildPromptFromExtracted(Map<String, dynamic> extracted) {
-    final buffer = StringBuffer();
-    buffer.writeln('You are a senior business strategist with 20+ years of experience.');
-    buffer.writeln('Analyse the following 7 strategy documents submitted by a company.');
-    buffer.writeln('Base your ENTIRE analysis on the actual content provided below.');
-    buffer.writeln('');
-
-    final moduleLabels = {
-      'team':        'TEAM PROFILE',
-      'businessDev': 'BUSINESS DEVELOPMENT',
-      'risk':        'RISK OVERVIEW',
-      'operation':   'OPERATIONS',
-      'policy':      'POLICY',
-      'challenges':  'CHALLENGES',
-      'profile':     'COMPANY PROFILE',
-    };
-
-    bool hasAnyContent = false;
-    for (final entry in extracted.entries) {
-      final label = moduleLabels[entry.key] ?? entry.key.toUpperCase();
-      final content = entry.value?.toString().trim() ?? '';
-      if (content.isNotEmpty && content != 'null') {
-        buffer.writeln('=== $label ===');
-        // Cap at 1500 chars per doc to fit within token limits across 7 docs
-        buffer.writeln(content.length > 1500 ? content.substring(0, 1500) + '...' : content);
-        buffer.writeln('');
-        hasAnyContent = true;
-      }
-    }
-
-    if (!hasAnyContent) {
-      buffer.writeln('[No document text could be extracted from uploaded files.]');
-      buffer.writeln('Provide guidance based solely on the module names listed above.');
-    }
-
-    buffer.writeln(r'''
-Return ONLY this JSON (no markdown, no extra text, valid JSON only):
-{
-  "verdict": "STRONG" | "MODERATE" | "WEAK",
-  "summary": "3-4 sentence executive summary referencing specific content from the documents",
-  "overallScore": 0.0-1.0,
-  "teamScore": 0.0-1.0,
-  "operationScore": 0.0-1.0,
-  "policyScore": 0.0-1.0,
-  "challengeScore": 0.0-1.0,
-  "strengths": ["Specific strength from document content","Specific strength 2","Specific strength 3"],
-  "risks": ["Specific risk identified in documents","Specific risk 2","Specific risk 3"],
-  "opportunities": ["Opportunity based on documents","Opportunity 2","Opportunity 3"],
-  "recommendations": ["Actionable recommendation 1","Actionable recommendation 2","Actionable recommendation 3"],
-  "finalRecommendation": "3-4 sentence paragraph with specific, actionable next steps derived from the actual documents."
-}
-
-CRITICAL: Never use placeholder text like "Documents uploaded", "retry", "API key" etc.
-All output must reference actual content from the submitted documents.
-''');
-
-    return buffer.toString();
-  }
-
-  // ── Call Anthropic Claude API ──────────────────────────────────────────────
-  Future<String> _callAnthropicApi(String prompt) async {
-    final response = await http.post(
-      Uri.parse('https://api.anthropic.com/v1/messages'),
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-      },
-      body: jsonEncode({
-        'model': 'claude-sonnet-4-20250514',
-        'max_tokens': 2000,
-        'system': 'You are a senior business strategist. Respond with ONLY valid JSON — no markdown, no preamble. Your response must be parseable by jsonDecode().',
-        'messages': [
-          {'role': 'user', 'content': prompt}
-        ],
-      }),
-    ).timeout(const Duration(seconds: 90));
-
-    if (response.statusCode == 200) {
-      final data    = jsonDecode(response.body) as Map<String, dynamic>;
-      final content = (data['content'] as List<dynamic>?)
-          ?.whereType<Map<String, dynamic>>()
-          .firstWhere((b) => b['type'] == 'text', orElse: () => {})['text'] as String? ?? '';
-      if (content.isEmpty) throw Exception('Empty response from Claude API');
-      return content;
-    } else {
-      throw Exception('Claude API error ${response.statusCode}: ${response.body}');
-    }
-  }
-
-  // ── Groq fallback (if GROQ_API_KEY is set at build time) ──────────────────
-  Future<String> _callGroqFallback(String prompt) async {
-    const groqKey = String.fromEnvironment('GROQ_API_KEY');
-    if (groqKey.isEmpty) throw Exception('No Groq API key');
-    final response = await http.post(
-      Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $groqKey',
-      },
-      body: jsonEncode({
-        'model': 'mixtral-8x7b-32768',
-        'messages': [
-          {'role': 'system', 'content': 'You are a senior business strategist. Respond ONLY with valid JSON. No markdown, no preamble.'},
-          {'role': 'user', 'content': prompt},
-        ],
-        'temperature': 0.2,
-        'max_tokens': 2000,
-      }),
-    ).timeout(const Duration(seconds: 60));
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data['choices']?[0]?['message']?['content'] as String? ?? '';
-    } else {
-      throw Exception('Groq API error ${response.statusCode}');
     }
   }
 
@@ -226,132 +106,92 @@ All output must reference actual content from the submitted documents.
     });
 
     try {
-      await _ensureRecord();
-
-      // Step 0: Fetch document text extracted from server
+      // Ensure we have a record ID
       _setStep(0);
-      Map<String, dynamic> extracted = {};
-
-      if (widget.state.recordId != null) {
-        try {
-          final data = await ApiService.getModuleData(
-            module:   'stratic',
-            recordId: widget.state.recordId!,
-          );
-
-          // Try 'extracted' key first
-          extracted = (data['extracted'] as Map<String, dynamic>?) ?? {};
-
-          // If empty, try 'files' key (different backend response format)
-          if (extracted.isEmpty) {
-            final files = data['files'] as Map<String, dynamic>?;
-            if (files != null) {
-              extracted = Map<String, dynamic>.fromEntries(
-                files.entries.map((e) {
-                  final v = e.value;
-                  final text = (v is Map)
-                      ? (v['extractedText'] ?? v['text'] ?? v['content'] ?? '').toString()
-                      : v.toString();
-                  return MapEntry(e.key, text);
-                }),
-              );
-            }
-          }
-
-          // Try 'documents' key as last resort
-          if (extracted.isEmpty) {
-            final docs = data['documents'] as Map<String, dynamic>?;
-            if (docs != null) extracted = docs;
-          }
-        } catch (_) {
-          // Network or parsing error — continue with empty map
-        }
-      }
-
-      // Steps 1–5: Process each module
-      for (int i = 1; i <= 5; i++) {
-        _setStep(i);
-        await Future.delayed(const Duration(milliseconds: 600));
-        if (!mounted) return;
-      }
-
-      // Step 6: Call AI
-      _setStep(6);
-      final prompt = _buildPromptFromExtracted(extracted);
-
-      String rawResponse;
-      try {
-        rawResponse = await _callAnthropicApi(prompt);
-      } catch (_) {
-        // Try Groq as fallback
-        rawResponse = await _callGroqFallback(prompt);
-      }
-
-      // Clean JSON fences if present
-      String js = rawResponse.trim();
-      if (js.startsWith('```')) {
-        js = js
-            .replaceAll(RegExp(r'^```[a-z]*\n?'), '')
-            .replaceAll(RegExp(r'```$'), '')
-            .trim();
-      }
-
-      // Parse JSON
-      Map<String, dynamic> jsonData;
-      try {
-        jsonData = jsonDecode(js) as Map<String, dynamic>;
-      } catch (_) {
-        if (!mounted) return;
-        setState(() {
-          _isGenerating = false;
-          _isDone       = false;
-          _errorMsg     = 'AI returned an unexpected format. Please tap "Generate AI Strategy Report" to try again.';
-        });
+      final ok = await _ensureRecord();
+      if (!ok || !mounted) {
+        _showError('Could not initialise record. Please try again.');
         return;
       }
 
-      final report = StraticAiReport.fromJson(rawResponse, jsonData);
-      widget.state.aiReport = report;
+      // Animate through steps while waiting for server
+      _setStep(1);
+      final animFuture = _animateSteps();
 
-      // Step 7: Save to MongoDB
+      // Call backend — server runs AI with its own API key
+      final reportData = await ApiService.generateModuleAiReport(
+        module:   'stratic',
+        recordId: widget.state.recordId!,
+      );
+
+      // Stop animation at last step
+      await animFuture;
       _setStep(7);
-      if (widget.state.recordId != null) {
-        try {
-          await ApiService.saveModuleAiReport(
-            module:   'stratic',
-            recordId: widget.state.recordId!,
-            report: {
-              'verdict':             report.verdict,
-              'summary':             report.summary,
-              'overallScore':        report.overallScore,
-              'teamScore':           report.teamScore,
-              'operationScore':      report.operationScore,
-              'policyScore':         report.policyScore,
-              'challengeScore':      report.challengeScore,
-              'strengths':           report.strengths,
-              'risks':               report.risks,
-              'opportunities':       report.opportunities,
-              'recommendations':     report.recommendations,
-              'finalRecommendation': report.finalRecommendation,
-            },
-          );
-        } catch (_) {
-          // DB save failed silently — report still shown to user
-        }
-      }
+
+      // Parse report from backend response
+      final report = _parseReport(reportData);
+      widget.state.aiReport = report;
 
       if (!mounted) return;
       setState(() { _isGenerating = false; _isDone = true; _errorMsg = null; });
 
     } catch (e) {
       if (!mounted) return;
-      final msg = e.toString();
-      setState(() {
-        _isGenerating = false;
-        _isDone       = false;
-        _errorMsg     = 'Analysis failed: ${msg.length > 150 ? msg.substring(0, 150) + '...' : msg}\n\nPlease tap "Generate AI Strategy Report" to retry.';
-      });
+      final raw = e.toString();
+      // Clean up common error messages for display
+      String display = raw
+          .replaceAll('Exception: ', '')
+          .replaceAll('SocketException: ', 'Network error: ')
+          .replaceAll('TimeoutException: ', 'Request timed out — ');
+      if (display.length > 200) display = display.substring(0, 200) + '...';
+      _showError(display);
     }
+  }
+
+  // Animate through steps 1–6 while backend does its work
+  Future<void> _animateSteps() async {
+    for (int i = 2; i <= 6; i++) {
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (!mounted || !_isGenerating) return;
+      _setStep(i);
+    }
+  }
+
+  void _showError(String msg) {
+    if (!mounted) return;
+    setState(() {
+      _isGenerating = false;
+      _isDone       = false;
+      _errorMsg     = msg;
+    });
+  }
+
+  // Parse report from whatever shape the backend returns
+  StraticAiReport _parseReport(Map<String, dynamic> data) {
+    // Backend may return report directly or nested under 'aiReport'
+    final j = (data['aiReport'] as Map<String, dynamic>?) ?? data;
+
+    List<String> asList(String key) =>
+        (j[key] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+
+    double asDouble(String key, [double fallback = 0.5]) =>
+        (j[key] as num?)?.toDouble() ?? fallback;
+
+    return StraticAiReport(
+      rawJson:             jsonEncode(j),
+      verdict:             j['verdict']             as String? ?? 'MODERATE',
+      summary:             j['summary']             as String? ?? '',
+      overallScore:        asDouble('overallScore'),
+      teamScore:           asDouble('teamScore'),
+      operationScore:      asDouble('operationScore'),
+      policyScore:         asDouble('policyScore'),
+      challengeScore:      asDouble('challengeScore'),
+      strengths:           asList('strengths'),
+      risks:               asList('risks'),
+      opportunities:       asList('opportunities'),
+      recommendations:     asList('recommendations'),
+      finalRecommendation: j['finalRecommendation'] as String? ?? '',
+    );
   }
 
   void _snack(String msg, {bool error = false}) {
@@ -393,8 +233,7 @@ All output must reference actual content from the submitted documents.
     width: double.infinity,
     decoration: const BoxDecoration(
       gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
         colors: [Color(0xFF054B60), _teal],
       ),
     ),
@@ -403,28 +242,19 @@ All output must reference actual content from the submitted documents.
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         GestureDetector(
           onTap: () => Navigator.pop(context),
-          child: Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10)),
+          child: Container(width: 38, height: 38,
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
             child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 16)),
         ),
         const SizedBox(height: 18),
-        Container(
-          width: 54, height: 54,
-          decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(15)),
-          child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 28),
-        ),
+        Container(width: 54, height: 54,
+          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(15)),
+          child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 28)),
         const SizedBox(height: 10),
         Text('AI Strategy Conclusion',
-            style: GoogleFonts.montserrat(
-                fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
+            style: GoogleFonts.montserrat(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
         Text('Powered by all 7 uploaded strategy documents',
-            style: GoogleFonts.inter(
-                fontSize: 12, color: Colors.white.withValues(alpha: 0.72))),
+            style: GoogleFonts.inter(fontSize: 12, color: Colors.white.withValues(alpha: 0.72))),
       ]),
     )),
   );
@@ -434,86 +264,58 @@ All output must reference actual content from the submitted documents.
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text('Strategy Documents',
-            style: GoogleFonts.montserrat(
-                fontSize: 14, fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary)),
+            style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-              color: count == 7
-                  ? AppTheme.success.withValues(alpha: 0.1)
-                  : _teal.withValues(alpha: 0.08),
+              color: count == 7 ? AppTheme.success.withValues(alpha: 0.1) : _teal.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(20)),
           child: Text('$count / 7',
-              style: GoogleFonts.inter(
-                  fontSize: 11, fontWeight: FontWeight.w700,
+              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700,
                   color: count == 7 ? AppTheme.success : _teal)),
         ),
       ]),
       const SizedBox(height: 10),
       Container(
-        decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppTheme.divider)),
-        child: Column(
-          children: List.generate(_modInfos.length, (i) {
-            final info   = _modInfos[i];
-            final idx    = widget.state.allSlots.indexWhere((s) => s.key == info.key);
-            final slot   = idx >= 0 ? widget.state.allSlots[idx] : ModuleFileSlot(key: info.key);
-            final isLast = i == _modInfos.length - 1;
-            return Column(children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Row(children: [
-                  Container(
-                    width: 36, height: 36,
-                    decoration: BoxDecoration(
-                        color: slot.isUploaded
-                            ? AppTheme.success.withValues(alpha: 0.1)
-                            : info.color.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Icon(
-                        slot.isUploaded ? Icons.check_rounded : info.icon,
-                        color: slot.isUploaded ? AppTheme.success : info.color,
-                        size: 16),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(info.label,
-                        style: GoogleFonts.inter(
-                            fontSize: 13, fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary)),
-                    Text(
-                      slot.isUploaded && slot.fileName != null
-                          ? slot.fileName! : 'No document uploaded',
+        child: Column(children: List.generate(_modInfos.length, (i) {
+          final info   = _modInfos[i];
+          final idx    = widget.state.allSlots.indexWhere((s) => s.key == info.key);
+          final slot   = idx >= 0 ? widget.state.allSlots[idx] : ModuleFileSlot(key: info.key);
+          final isLast = i == _modInfos.length - 1;
+          return Column(children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(children: [
+                Container(width: 36, height: 36,
+                  decoration: BoxDecoration(
+                      color: slot.isUploaded ? AppTheme.success.withValues(alpha: 0.1) : info.color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10)),
+                  child: Icon(slot.isUploaded ? Icons.check_rounded : info.icon,
+                      color: slot.isUploaded ? AppTheme.success : info.color, size: 16)),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(info.label, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                  Text(slot.isUploaded && slot.fileName != null ? slot.fileName! : 'No document uploaded',
                       style: GoogleFonts.inter(fontSize: 10,
-                          color: slot.isUploaded
-                              ? AppTheme.textSecondary
-                              : AppTheme.textSecondary.withValues(alpha: 0.55)),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                    ),
-                  ])),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                        color: slot.isUploaded
-                            ? AppTheme.success.withValues(alpha: 0.1)
-                            : AppTheme.warning.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20)),
-                    child: Text(
-                      slot.isUploaded ? 'Ready' : 'Pending',
-                      style: GoogleFonts.inter(
-                          fontSize: 10, fontWeight: FontWeight.w700,
-                          color: slot.isUploaded ? AppTheme.success : AppTheme.warning),
-                    ),
-                  ),
-                ]),
-              ),
-              if (!isLast) const Divider(height: 1, indent: 62, endIndent: 14),
-            ]);
-          }),
-        ),
+                          color: slot.isUploaded ? AppTheme.textSecondary : AppTheme.textSecondary.withValues(alpha: 0.55)),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ])),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                      color: slot.isUploaded ? AppTheme.success.withValues(alpha: 0.1) : AppTheme.warning.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Text(slot.isUploaded ? 'Ready' : 'Pending',
+                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
+                          color: slot.isUploaded ? AppTheme.success : AppTheme.warning)),
+                ),
+              ]),
+            ),
+            if (!isLast) const Divider(height: 1, indent: 62, endIndent: 14),
+          ]);
+        })),
       ),
       if (count < 7) ...[
         const SizedBox(height: 10),
@@ -526,10 +328,8 @@ All output must reference actual content from the submitted documents.
           child: Row(children: [
             Icon(Icons.info_outline_rounded, color: AppTheme.warning, size: 15),
             const SizedBox(width: 8),
-            Expanded(child: Text(
-              'Pending modules scored at 0.30. Upload all 7 for best results.',
-              style: GoogleFonts.inter(fontSize: 11, color: AppTheme.warning),
-            )),
+            Expanded(child: Text('Pending modules scored at 0.30. Upload all 7 for best results.',
+                style: GoogleFonts.inter(fontSize: 11, color: AppTheme.warning))),
           ]),
         ),
       ],
@@ -542,8 +342,7 @@ All output must reference actual content from the submitted documents.
       onPressed: _generate,
       icon: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
       label: Text('Generate AI Strategy Report',
-          style: GoogleFonts.inter(
-              fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
       style: ElevatedButton.styleFrom(
           backgroundColor: _teal,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -558,11 +357,24 @@ All output must reference actual content from the submitted documents.
         color: AppTheme.error.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.error.withValues(alpha: 0.3))),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Icon(Icons.error_outline, color: AppTheme.error, size: 16),
-      const SizedBox(width: 8),
-      Expanded(child: Text(_errorMsg!,
-          style: GoogleFonts.inter(fontSize: 12, color: AppTheme.error))),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.error_outline, color: AppTheme.error, size: 16),
+        const SizedBox(width: 8),
+        Text('Analysis Failed', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.error)),
+      ]),
+      const SizedBox(height: 6),
+      Text(_errorMsg!, style: GoogleFonts.inter(fontSize: 12, color: AppTheme.error)),
+      const SizedBox(height: 10),
+      SizedBox(width: double.infinity,
+        child: ElevatedButton(
+          onPressed: _generate,
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          child: Text('Retry', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+        ),
+      ),
     ]),
   );
 
@@ -581,12 +393,10 @@ All output must reference actual content from the submitted documents.
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white))),
           const SizedBox(height: 18),
           Text('Analysing Your Strategy',
-              style: GoogleFonts.montserrat(
-                  fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+              style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
           const SizedBox(height: 6),
           Text(_stepLabel, textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                  fontSize: 13, color: Colors.white.withValues(alpha: 0.75))),
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.75))),
           const SizedBox(height: 18),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
@@ -606,15 +416,12 @@ All output must reference actual content from the submitted documents.
     final vUpper = r.verdict.toUpperCase();
     final vColor = vUpper.contains('STRONG')
         ? AppTheme.success
-        : vUpper.contains('MODERATE')
-            ? AppTheme.warning
-            : AppTheme.error;
+        : vUpper.contains('MODERATE') ? AppTheme.warning : AppTheme.error;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Overall verdict card
+      // Verdict banner
       Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(22),
+        width: double.infinity, padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
             gradient: const LinearGradient(colors: [Color(0xFF054B60), _teal]),
             borderRadius: BorderRadius.circular(18)),
@@ -623,25 +430,21 @@ All output must reference actual content from the submitted documents.
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                  color: vColor.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(20),
+                  color: vColor.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: vColor.withValues(alpha: 0.5))),
               child: Text(r.verdict,
-                  style: GoogleFonts.montserrat(
-                      fontSize: 10, fontWeight: FontWeight.w800, color: vColor)),
+                  style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w800, color: vColor)),
             ),
             const Spacer(),
             Text('${(r.overallScore * 100).toInt()}%',
-                style: GoogleFonts.montserrat(
-                    fontSize: 34, fontWeight: FontWeight.w800, color: Colors.white)),
+                style: GoogleFonts.montserrat(fontSize: 34, fontWeight: FontWeight.w800, color: Colors.white)),
           ]),
           const SizedBox(height: 2),
           Text('Overall Strategy Score',
               style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.55))),
           const SizedBox(height: 12),
           Text(r.summary,
-              style: GoogleFonts.inter(
-                  fontSize: 13, color: Colors.white.withValues(alpha: 0.9), height: 1.55)),
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9), height: 1.55)),
         ]),
       ),
       const SizedBox(height: 16),
@@ -663,8 +466,7 @@ All output must reference actual content from the submitted documents.
 
       // Final recommendation
       Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
+        width: double.infinity, padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
             gradient: const LinearGradient(colors: [Color(0xFF054B60), _teal]),
             borderRadius: BorderRadius.circular(16)),
@@ -673,13 +475,11 @@ All output must reference actual content from the submitted documents.
             const Icon(Icons.auto_awesome, color: Colors.white70, size: 15),
             const SizedBox(width: 8),
             Text('AI Strategy Recommendation',
-                style: GoogleFonts.montserrat(
-                    fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
           ]),
           const SizedBox(height: 10),
           Text(r.finalRecommendation,
-              style: GoogleFonts.inter(
-                  fontSize: 13, color: Colors.white.withValues(alpha: 0.9), height: 1.6)),
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: 0.9), height: 1.6)),
         ]),
       ),
       const SizedBox(height: 16),
@@ -692,8 +492,7 @@ All output must reference actual content from the submitted documents.
           onPressed: () => _viewReport(r),
           icon: const Icon(Icons.visibility_outlined, size: 15),
           label: Text('View', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
-          style: OutlinedButton.styleFrom(
-              foregroundColor: _teal, side: const BorderSide(color: _teal),
+          style: OutlinedButton.styleFrom(foregroundColor: _teal, side: const BorderSide(color: _teal),
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         )),
@@ -703,22 +502,19 @@ All output must reference actual content from the submitted documents.
           icon: const Icon(Icons.picture_as_pdf, size: 15, color: Colors.white),
           label: Text('Download PDF',
               style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: _teal,
+          style: ElevatedButton.styleFrom(backgroundColor: _teal,
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         )),
       ]),
       const SizedBox(height: 10),
-      SizedBox(
-        width: double.infinity,
+      SizedBox(width: double.infinity,
         child: OutlinedButton.icon(
           onPressed: _generate,
           icon: const Icon(Icons.refresh_rounded, size: 16),
           label: Text('Regenerate Report',
               style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-          style: OutlinedButton.styleFrom(
-              foregroundColor: _teal, side: const BorderSide(color: _teal),
+          style: OutlinedButton.styleFrom(foregroundColor: _teal, side: const BorderSide(color: _teal),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         ),
@@ -735,12 +531,9 @@ All output must reference actual content from the submitted documents.
     ];
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.divider),
-        boxShadow: [BoxShadow(color: _teal.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 3))],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.divider),
+          boxShadow: [BoxShadow(color: _teal.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 3))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(width: 32, height: 32,
@@ -754,10 +547,8 @@ All output must reference actual content from the submitted documents.
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: r.overallScore >= 0.7 ? AppTheme.success.withValues(alpha: 0.1)
-                  : r.overallScore >= 0.45 ? AppTheme.warning.withValues(alpha: 0.1)
-                  : AppTheme.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
+                  : r.overallScore >= 0.45 ? AppTheme.warning.withValues(alpha: 0.1) : AppTheme.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20)),
             child: Text('${(r.overallScore * 100).toInt()}% Score',
                 style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700,
                     color: r.overallScore >= 0.7 ? AppTheme.success
@@ -775,9 +566,8 @@ All output must reference actual content from the submitted documents.
               child: Icon(item.icon, color: item.color, size: 16)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(item.label,
-                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
-                      color: item.color, letterSpacing: 0.3)),
+              Text(item.label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700,
+                  color: item.color, letterSpacing: 0.3)),
               const SizedBox(height: 2),
               Text(item.text, maxLines: 3, overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textPrimary, height: 1.4)),
@@ -794,15 +584,11 @@ All output must reference actual content from the submitted documents.
       builder: (_) => DraggableScrollableSheet(
         initialChildSize: 0.85, minChildSize: 0.5, maxChildSize: 0.95,
         builder: (_, ctrl) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
+          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
           child: Column(children: [
             Container(margin: const EdgeInsets.only(top: 12), width: 40, height: 4,
                 decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Row(children: [
                 Container(width: 36, height: 36,
                     decoration: BoxDecoration(color: _teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
@@ -815,13 +601,13 @@ All output must reference actual content from the submitted documents.
             ),
             const Divider(height: 1),
             Expanded(child: ListView(controller: ctrl, padding: const EdgeInsets.all(20), children: [
-              _viewSection('Verdict',              r.verdict,                       Icons.verified_outlined),
-              _viewSection('Summary',              r.summary,                       Icons.description_outlined),
-              _viewSection('Strengths',            '• ' + r.strengths.join('\n• '), Icons.thumb_up_outlined),
-              _viewSection('Key Risks',            '• ' + r.risks.join('\n• '),     Icons.warning_amber_rounded),
+              _viewSection('Verdict',              r.verdict,                        Icons.verified_outlined),
+              _viewSection('Summary',              r.summary,                        Icons.description_outlined),
+              _viewSection('Strengths',            '• ' + r.strengths.join('\n• '),  Icons.thumb_up_outlined),
+              _viewSection('Key Risks',            '• ' + r.risks.join('\n• '),      Icons.warning_amber_rounded),
               _viewSection('Opportunities',        '• ' + r.opportunities.join('\n• '), Icons.lightbulb_outline_rounded),
               _viewSection('Recommendations',      '• ' + r.recommendations.join('\n• '), Icons.checklist_rounded),
-              _viewSection('Final Recommendation', r.finalRecommendation,           Icons.star_outline_rounded),
+              _viewSection('Final Recommendation', r.finalRecommendation,            Icons.star_outline_rounded),
             ])),
           ]),
         ),
@@ -833,15 +619,11 @@ All output must reference actual content from the submitted documents.
     padding: const EdgeInsets.only(bottom: 16),
     child: Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _teal.withValues(alpha: 0.04),
-        border: Border.all(color: _teal.withValues(alpha: 0.15)),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: _teal.withValues(alpha: 0.04),
+          border: Border.all(color: _teal.withValues(alpha: 0.15)), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(icon, color: _teal, size: 16),
-          const SizedBox(width: 6),
+          Icon(icon, color: _teal, size: 16), const SizedBox(width: 6),
           Text(title, style: GoogleFonts.montserrat(fontSize: 12, fontWeight: FontWeight.w700, color: _teal)),
         ]),
         const SizedBox(height: 8),
@@ -854,7 +636,6 @@ All output must reference actual content from the submitted documents.
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName  = 'Empora_Strategy_Report_$timestamp.pdf';
-
       final darkColor  = PdfColor.fromHex('054B60');
       final tealColor  = PdfColor.fromHex('0D6E8A');
       final blueColor  = PdfColor.fromHex('1A3A6B');
@@ -867,11 +648,9 @@ All output must reference actual content from the submitted documents.
       final verdictClr = r.overallScore >= 0.7 ? successClr : r.overallScore >= 0.45 ? goldColor : errorClr;
 
       pw.Widget secTitle(String text, {PdfColor? bg}) => pw.Container(
-        color: bg ?? darkColor,
-        padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        color: bg ?? darkColor, padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         margin: const pw.EdgeInsets.only(bottom: 8, top: 14),
-        child: pw.Text(text, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
-      );
+        child: pw.Text(text, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.white)));
 
       pw.Widget scoreBar(String label, double score, PdfColor color) =>
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
@@ -893,47 +672,37 @@ All output must reference actual content from the submitted documents.
           pw.Container(width: 6, height: 6, margin: const pw.EdgeInsets.only(top: 4, right: 8),
               decoration: pw.BoxDecoration(color: dotColor, shape: pw.BoxShape.circle)),
           pw.Expanded(child: pw.Text(text, style: pw.TextStyle(fontSize: 10, color: darkColor))),
-        ]),
-      );
+        ]));
 
       final pdf = pw.Document();
       pdf.addPage(pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(36),
-        header: (_) => pw.Container(
-          color: darkColor,
-          padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        pageFormat: PdfPageFormat.a4, margin: const pw.EdgeInsets.all(36),
+        header: (_) => pw.Container(color: darkColor, padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
             pw.Text('EMPORA AI STRATEGY REPORT', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
             pw.Text('STRATEGY ANALYSIS', style: pw.TextStyle(fontSize: 11, color: goldColor)),
-          ]),
-        ),
-        footer: (ctx) => pw.Container(
-          padding: const pw.EdgeInsets.only(top: 8),
+          ])),
+        footer: (ctx) => pw.Container(padding: const pw.EdgeInsets.only(top: 8),
           decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: PdfColors.grey300, width: 0.5))),
           child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
             pw.Text('Generated by Empora AI', style: pw.TextStyle(fontSize: 8, color: grayColor)),
             pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}', style: pw.TextStyle(fontSize: 8, color: grayColor)),
-          ]),
-        ),
+          ])),
         build: (_) => [
-          pw.Container(
-            width: double.infinity,
-            padding: const pw.EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+          pw.Container(width: double.infinity, padding: const pw.EdgeInsets.symmetric(vertical: 18, horizontal: 20),
             margin: const pw.EdgeInsets.only(top: 12, bottom: 16),
             decoration: pw.BoxDecoration(
               color: r.overallScore >= 0.7 ? PdfColor.fromHex('E8F5E9') : r.overallScore >= 0.45 ? PdfColor.fromHex('FFF8E1') : PdfColor.fromHex('FFF3E0'),
-              borderRadius: pw.BorderRadius.circular(10),
-              border: pw.Border.all(color: verdictClr, width: 2),
-            ),
+              borderRadius: pw.BorderRadius.circular(10), border: pw.Border.all(color: verdictClr, width: 2)),
             child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
               pw.Text(r.verdict, style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold, color: verdictClr)),
               pw.SizedBox(height: 4),
-              pw.Text('${(r.overallScore * 100).toInt()}% Overall Strategy Score', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: verdictClr)),
+              pw.Text('${(r.overallScore * 100).toInt()}% Overall Strategy Score',
+                  style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: verdictClr)),
               pw.SizedBox(height: 4),
-              pw.Text('Generated ${DateTime.now().toLocal().toString().substring(0, 16)}', style: pw.TextStyle(fontSize: 9, color: grayColor)),
-            ]),
-          ),
+              pw.Text('Generated ${DateTime.now().toLocal().toString().substring(0, 16)}',
+                  style: pw.TextStyle(fontSize: 9, color: grayColor)),
+            ])),
           secTitle('EXECUTIVE SUMMARY', bg: blueColor),
           pw.Container(padding: const pw.EdgeInsets.all(12), decoration: pw.BoxDecoration(color: lightGray, borderRadius: pw.BorderRadius.circular(6)),
               child: pw.Text(r.summary, style: pw.TextStyle(fontSize: 10, color: darkColor, lineSpacing: 4))),
@@ -951,11 +720,10 @@ All output must reference actual content from the submitted documents.
           if (r.opportunities.isNotEmpty) ...[secTitle('OPPORTUNITIES', bg: goldColor), ...r.opportunities.map((s) => bullet(s, goldColor))],
           if (r.recommendations.isNotEmpty) ...[secTitle('RECOMMENDATIONS', bg: blueColor), ...r.recommendations.map((s) => bullet(s, blueColor))],
           secTitle('FINAL RECOMMENDATION', bg: darkColor),
-          pw.Container(
-            padding: const pw.EdgeInsets.all(12),
-            decoration: pw.BoxDecoration(color: PdfColor.fromHex('F0F9FF'), borderRadius: pw.BorderRadius.circular(6), border: pw.Border.all(color: PdfColor.fromHex('B2D8E8'), width: 1.5)),
-            child: pw.Text(r.finalRecommendation, style: pw.TextStyle(fontSize: 10, color: darkColor, lineSpacing: 4)),
-          ),
+          pw.Container(padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(color: PdfColor.fromHex('F0F9FF'), borderRadius: pw.BorderRadius.circular(6),
+                  border: pw.Border.all(color: PdfColor.fromHex('B2D8E8'), width: 1.5)),
+              child: pw.Text(r.finalRecommendation, style: pw.TextStyle(fontSize: 10, color: darkColor, lineSpacing: 4))),
           pw.SizedBox(height: 16),
           pw.Center(child: pw.Text('For informational purposes only.', style: pw.TextStyle(fontSize: 8, color: grayColor))),
         ],
@@ -963,14 +731,14 @@ All output must reference actual content from the submitted documents.
 
       final pdfBytes = await pdf.save();
       if (kIsWeb) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF ready! Web download requires a web-enabled build.', style: GoogleFonts.inter(color: Colors.white)), backgroundColor: AppTheme.warning, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))));
+        _snack('PDF ready — web download requires a web build.', error: true);
       } else {
         File file;
         if (Platform.isAndroid) {
-          const downloadsPath = '/storage/emulated/0/Download';
-          final dir = Directory(downloadsPath);
+          const path = '/storage/emulated/0/Download';
+          final dir = Directory(path);
           if (!await dir.exists()) await dir.create(recursive: true);
-          file = File('$downloadsPath/$fileName');
+          file = File('$path/$fileName');
         } else {
           final dir = await getApplicationDocumentsDirectory();
           file = File('${dir.path}/$fileName');
@@ -978,24 +746,19 @@ All output must reference actual content from the submitted documents.
         await file.writeAsBytes(pdfBytes);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Row(children: [const Icon(Icons.picture_as_pdf, color: Colors.white, size: 18), const SizedBox(width: 8), Expanded(child: Text('PDF saved: $fileName', style: GoogleFonts.inter(color: Colors.white, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis))]),
-        backgroundColor: AppTheme.success, behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), duration: const Duration(seconds: 4),
-      ));
+      _snack('PDF saved: $fileName');
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download failed: $e', style: GoogleFonts.inter(color: Colors.white)), backgroundColor: AppTheme.error, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))));
+      _snack('Download failed: $e', error: true);
     }
   }
 
   Widget _card(Widget child) => Container(
     margin: const EdgeInsets.only(bottom: 14), padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.divider)),
-    child: child,
-  );
+    child: child);
 
-  Widget _sTitle(String t) => Text(t, style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary));
+  Widget _sTitle(String t) => Text(t,
+      style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary));
 
   Widget _bar(String label, double score, Color color) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
@@ -1005,9 +768,9 @@ All output must reference actual content from the submitted documents.
         Text('${(score * 100).toInt()}%', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
       ]),
       const SizedBox(height: 5),
-      ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(value: score, backgroundColor: AppTheme.divider, color: color, minHeight: 7)),
-    ]),
-  );
+      ClipRRect(borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(value: score, backgroundColor: AppTheme.divider, color: color, minHeight: 7)),
+    ]));
 
   Widget _bullets(String title, List<String> items, Color color) => _card(
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1016,12 +779,11 @@ All output must reference actual content from the submitted documents.
       ...items.map((s) => Padding(
         padding: const EdgeInsets.only(bottom: 7),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 6, height: 6, margin: const EdgeInsets.only(top: 5, right: 10), decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(width: 6, height: 6, margin: const EdgeInsets.only(top: 5, right: 10),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           Expanded(child: Text(s, style: GoogleFonts.inter(fontSize: 13, color: AppTheme.textPrimary, height: 1.5))),
-        ]),
-      )),
-    ]),
-  );
+        ]))),
+    ]));
 }
 
 class _StraticModInfo {
@@ -1034,7 +796,6 @@ class _StraticModInfo {
 class _AbstractItem {
   final IconData icon;
   final Color color;
-  final String label;
-  final String text;
+  final String label, text;
   const _AbstractItem({required this.icon, required this.color, required this.label, required this.text});
 }
