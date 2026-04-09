@@ -305,7 +305,166 @@ function createModuleController(Model) {
     }
   };
 
-  return { createRecord, getMyRecords, getRecordById, uploadSlotFile, getModuleData, saveAiReport, deleteRecord, downloadReportPdf };
+  // POST /api/:module/:id/generate-ai
+  // Reads extracted text from all slots, calls Groq AI server-side, saves & returns report.
+  const generateAiReport = async (req, res) => {
+    try {
+      const record = await _ownedRecord(Model, req.params.id, req.user.id);
+      if (!record) return _notFound(res);
+
+      // ── 1. Collect extracted text from all document slots ──────────────────
+      const moduleLabels = {
+        team:        'TEAM PROFILE',
+        businessDev: 'BUSINESS DEVELOPMENT',
+        risk:        'RISK OVERVIEW',
+        operation:   'OPERATIONS',
+        policy:      'POLICY',
+        challenges:  'CHALLENGES',
+        profile:     'COMPANY PROFILE',
+      };
+
+      let docSection = '';
+      let hasContent  = false;
+      const obj = record.toObject();
+
+      for (const [key, label] of Object.entries(moduleLabels)) {
+        const slot    = obj[key];
+        const content = (slot?.extractedText || '').trim();
+        if (content) {
+          docSection += `=== ${label} ===\n${content.substring(0, 1500)}${content.length > 1500 ? '...' : ''}\n\n`;
+          hasContent = true;
+        }
+      }
+
+      if (!hasContent) {
+        docSection = '[No document text could be extracted. Provide general strategic guidance based on module names.]\n';
+      }
+
+      // ── 2. Build AI prompt ─────────────────────────────────────────────────
+      const prompt = `You are a senior business strategist with 20+ years of experience.
+Analyse the following strategy documents submitted by a company and produce a comprehensive report.
+Base your ENTIRE analysis on the actual content provided below — do NOT use placeholder text.
+
+${docSection}
+Return ONLY this valid JSON (no markdown fences, no preamble, nothing else):
+{
+  "verdict": "STRONG" | "MODERATE" | "WEAK",
+  "summary": "3-4 sentence executive summary referencing specific content from the documents",
+  "overallScore": 0.0,
+  "teamScore": 0.0,
+  "operationScore": 0.0,
+  "policyScore": 0.0,
+  "challengeScore": 0.0,
+  "strengths": ["Specific strength from documents", "Strength 2", "Strength 3"],
+  "risks": ["Specific risk from documents", "Risk 2", "Risk 3"],
+  "opportunities": ["Opportunity from documents", "Opportunity 2", "Opportunity 3"],
+  "recommendations": ["Actionable recommendation 1", "Recommendation 2", "Recommendation 3"],
+  "finalRecommendation": "3-4 sentence paragraph with specific actionable next steps from the documents."
+}
+All scores must be between 0.0 and 1.0. Arrays must have at least 2 items each.
+NEVER use text like 'Documents uploaded', 'retry', 'API key', or 'service unavailable'.`;
+
+      // ── 3. Call Groq AI ────────────────────────────────────────────────────
+      const groqKey = process.env.GROQ_API_KEY;
+      if (!groqKey) {
+        return res.status(500).json({ success: false, message: 'GROQ_API_KEY not configured on server.' });
+      }
+
+      const axios = require('axios');
+      let rawResponse;
+
+      try {
+        const groqRes = await axios.post(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            model: 'mixtral-8x7b-32768',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a senior business strategist. Respond ONLY with valid JSON. No markdown fences, no preamble. Your entire response must be parseable by JSON.parse().',
+              },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.2,
+            max_tokens:  2000,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${groqKey}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 90000,
+          }
+        );
+        rawResponse = groqRes.data?.choices?.[0]?.message?.content || '';
+      } catch (aiErr) {
+        console.error('Groq API error:', aiErr.response?.data || aiErr.message);
+        return res.status(502).json({
+          success: false,
+          message: `AI service error: ${aiErr.response?.data?.error?.message || aiErr.message}`,
+        });
+      }
+
+      // ── 4. Parse JSON ──────────────────────────────────────────────────────
+      let aiData;
+      try {
+        let text = rawResponse.trim().replace(/^```[a-z]*\n?/, '').replace(/```$/, '').trim();
+        aiData = JSON.parse(text);
+      } catch (parseErr) {
+        console.error('AI JSON parse failed. Raw:', rawResponse.substring(0, 300));
+        return res.status(500).json({
+          success: false,
+          message: 'AI returned an invalid format. Please tap Retry.',
+        });
+      }
+
+      // ── 5. Save to MongoDB & auto-generate PDF ─────────────────────────────
+      const reportData = {
+        verdict:             aiData.verdict             || 'MODERATE',
+        summary:             aiData.summary             || '',
+        overallScore:        Number(aiData.overallScore)    || 0.5,
+        teamScore:           Number(aiData.teamScore)       || 0.5,
+        operationScore:      Number(aiData.operationScore)  || 0.5,
+        policyScore:         Number(aiData.policyScore)     || 0.5,
+        challengeScore:      Number(aiData.challengeScore)  || 0.5,
+        strengths:           Array.isArray(aiData.strengths)       ? aiData.strengths       : [],
+        risks:               Array.isArray(aiData.risks)           ? aiData.risks           : [],
+        opportunities:       Array.isArray(aiData.opportunities)   ? aiData.opportunities   : [],
+        recommendations:     Array.isArray(aiData.recommendations) ? aiData.recommendations : [],
+        finalRecommendation: aiData.finalRecommendation || '',
+        rawText:             rawResponse,
+        generatedAt:         new Date(),
+      };
+
+      record.set('aiReport', reportData);
+      record.status = 'ai_complete';
+      await record.save();
+
+      // Auto-generate PDF (non-blocking — don't fail if PDF fails)
+      let pdfUrl = null;
+      try {
+        pdfUrl = await _generatePdf(record, Model.modelName);
+        if (pdfUrl) {
+          record.set('aiReport.pdfUrl', pdfUrl);
+          await record.save();
+        }
+      } catch (pdfErr) {
+        console.error(`[${Model.modelName}] PDF generation failed:`, pdfErr.message);
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: { aiReport: record.aiReport },
+        pdfUrl,
+      });
+
+    } catch (err) {
+      console.error('generateAiReport error:', err);
+      return res.status(500).json({ success: false, message: err.message || 'Server error.' });
+    }
+  };
+
+  return { createRecord, getMyRecords, getRecordById, uploadSlotFile, getModuleData, saveAiReport, generateAiReport, deleteRecord, downloadReportPdf };
 }
 
 // ─── PDF generation (same as before) ─────────────────────────────────────────
