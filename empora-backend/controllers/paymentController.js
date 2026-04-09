@@ -32,8 +32,8 @@ function getRazorpay() {
   }
 
   return new Razorpay({
-    key_id:     keyId.trim(),
-    key_secret: keySecret.trim(),
+    key_id:     keyId.replace(/\s/g, ""),
+    key_secret: keySecret.replace(/\s/g, ""),
   });
 }
 
@@ -104,7 +104,7 @@ exports.createOrder = async (req, res) => {
       order_id: order.id,
       amount:   order.amount,
       currency: order.currency,
-      key_id:   process.env.RAZORPAY_KEY_ID.trim(),
+      key_id:   process.env.RAZORPAY_KEY_ID.replace(/\s/g, ''),
       plan,
       user: {
         name:  req.user.name,
@@ -133,7 +133,7 @@ exports.verifyPayment = async (req, res) => {
     // Verify Razorpay signature
     const body     = razorpay_order_id + '|' + razorpay_payment_id;
     const expected = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET.trim())
+      .createHmac('sha256', (process.env.RAZORPAY_KEY_SECRET || '').replace(/\s/g, ''))
       .update(body)
       .digest('hex');
 
