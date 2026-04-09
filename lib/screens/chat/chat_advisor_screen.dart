@@ -87,9 +87,9 @@ class AdvisorConfigs {
         'I\'m your Legal Advisor specialising in property law and business legal matters. I can help you with property agreements, legal compliance, contracts, and dispute resolution.\n\nWhat legal matter can I assist you with today?',
     suggestions: [
       _SuggestionItem(emoji: '📜', title: 'Property agreement', subtitle: 'Draft & review',      prompt: 'How do I draft a proper property lease agreement for my business?'),
-      _SuggestionItem(emoji: '⚖️', title: 'Legal compliance',  subtitle: 'Business laws',       prompt: 'What are the key legal compliances my business must follow?'),
-      _SuggestionItem(emoji: '🤝', title: 'Contract review',   subtitle: 'Key clauses',         prompt: 'What are the important clauses I should check in a business contract?'),
-      _SuggestionItem(emoji: '🏠', title: 'Property title',    subtitle: 'Verification guide',  prompt: 'How do I verify property title before purchasing commercial property?'),
+      _SuggestionItem(emoji: '⚖️', title: 'Legal compliance',  subtitle: 'Business laws',        prompt: 'What are the key legal compliances my business must follow?'),
+      _SuggestionItem(emoji: '🤝', title: 'Contract review',   subtitle: 'Key clauses',          prompt: 'What are the important clauses I should check in a business contract?'),
+      _SuggestionItem(emoji: '🏠', title: 'Property title',    subtitle: 'Verification guide',   prompt: 'How do I verify property title before purchasing commercial property?'),
     ],
     quickChips: ['Lease agreement', 'Legal compliance', 'Contract review', 'Property title', 'Dispute resolution'],
   );
@@ -137,10 +137,10 @@ class AdvisorConfigs {
     greeting:
         'I\'m your Risk Management Advisor. I help founders identify, assess, and mitigate business risks before they become problems.\n\nLet\'s analyse the risks in your business today.',
     suggestions: [
-      _SuggestionItem(emoji: '🔍', title: 'Risk assessment',   subtitle: 'Identify key risks',  prompt: 'What are the major risks I should be aware of in my business?'),
-      _SuggestionItem(emoji: '🛡️', title: 'Insurance coverage', subtitle: 'What you need',     prompt: 'What business insurance policies should I have to protect my company?'),
-      _SuggestionItem(emoji: '📉', title: 'Financial risk',    subtitle: 'Cash flow safety',    prompt: 'How do I protect my business from financial risks and cash flow problems?'),
-      _SuggestionItem(emoji: '🔐', title: 'Cyber security risk', subtitle: 'Data protection',  prompt: 'What cybersecurity risks does my business face and how to mitigate them?'),
+      _SuggestionItem(emoji: '🔍', title: 'Risk assessment',    subtitle: 'Identify key risks',  prompt: 'What are the major risks I should be aware of in my business?'),
+      _SuggestionItem(emoji: '🛡️', title: 'Insurance coverage', subtitle: 'What you need',      prompt: 'What business insurance policies should I have to protect my company?'),
+      _SuggestionItem(emoji: '📉', title: 'Financial risk',     subtitle: 'Cash flow safety',    prompt: 'How do I protect my business from financial risks and cash flow problems?'),
+      _SuggestionItem(emoji: '🔐', title: 'Cyber security risk', subtitle: 'Data protection',   prompt: 'What cybersecurity risks does my business face and how to mitigate them?'),
     ],
     quickChips: ['Assess my business risks now', 'Build a continuity plan', 'Business insurance', 'Financial risk', 'Cyber risk'],
   );
@@ -171,10 +171,10 @@ class AdvisorConfigs {
     greeting:
         'I\'m your Cybersecurity Advisor. I help founders protect their digital assets, customer data, and business systems from cyber threats.\n\nLet\'s secure your digital business today.',
     suggestions: [
-      _SuggestionItem(emoji: '🔐', title: 'Password security', subtitle: 'Best practices',   prompt: 'What are the best password and access security practices for my business?'),
-      _SuggestionItem(emoji: '🦠', title: 'Malware protection', subtitle: 'Stay protected',  prompt: 'How do I protect my business systems from malware and ransomware attacks?'),
+      _SuggestionItem(emoji: '🔐', title: 'Password security',  subtitle: 'Best practices',   prompt: 'What are the best password and access security practices for my business?'),
+      _SuggestionItem(emoji: '🦠', title: 'Malware protection', subtitle: 'Stay protected',   prompt: 'How do I protect my business systems from malware and ransomware attacks?'),
       _SuggestionItem(emoji: '📱', title: 'Data privacy',       subtitle: 'Compliance guide', prompt: 'What data privacy laws apply to my business and how do I comply?'),
-      _SuggestionItem(emoji: '☁️', title: 'Cloud security',    subtitle: 'Safe cloud usage', prompt: 'How do I securely use cloud services for my business data?'),
+      _SuggestionItem(emoji: '☁️', title: 'Cloud security',     subtitle: 'Safe cloud usage', prompt: 'How do I securely use cloud services for my business data?'),
     ],
     quickChips: ['Password security', 'Data privacy', 'Cyber threats', 'Cloud safety', 'GDPR compliance'],
   );
@@ -188,10 +188,10 @@ class AdvisorConfigs {
     greeting:
         'I\'m your Business Restructuring Advisor. I help founders reshape their business model, operations, and finances during challenging or growth phases.\n\nLet\'s discuss how to transform your business.',
     suggestions: [
-      _SuggestionItem(emoji: '🔄', title: 'Business model',    subtitle: 'Pivot strategy',        prompt: 'How do I restructure my business model to improve profitability?'),
+      _SuggestionItem(emoji: '🔄', title: 'Business model',     subtitle: 'Pivot strategy',       prompt: 'How do I restructure my business model to improve profitability?'),
       _SuggestionItem(emoji: '💼', title: 'Debt restructuring', subtitle: 'Manage obligations',   prompt: 'How can I restructure my business debts to improve cash flow?'),
-      _SuggestionItem(emoji: '👔', title: 'Team restructure',  subtitle: 'Right-size your team',  prompt: 'How do I restructure my team for better efficiency and cost savings?'),
-      _SuggestionItem(emoji: '📊', title: 'Cost reduction',    subtitle: 'Lean operations',       prompt: 'What are the best strategies to reduce operational costs in my business?'),
+      _SuggestionItem(emoji: '👔', title: 'Team restructure',   subtitle: 'Right-size your team', prompt: 'How do I restructure my team for better efficiency and cost savings?'),
+      _SuggestionItem(emoji: '📊', title: 'Cost reduction',     subtitle: 'Lean operations',      prompt: 'What are the best strategies to reduce operational costs in my business?'),
     ],
     quickChips: ['Business pivot', 'Debt management', 'Cost reduction', 'Team structure', 'Merger advice'],
   );
@@ -259,7 +259,8 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
     String base = widget.config.greeting;
     if (_industry.isNotEmpty || _stage.isNotEmpty) {
       base +=
-          '\n\n💼 I can see you\'re in ${_industry.isNotEmpty ? _industry : 'your industry'}${_stage.isNotEmpty ? ' at $_stage stage' : ''}. I\'ll personalise my advice accordingly.';
+          '\n\n💼 I can see you\'re in ${_industry.isNotEmpty ? _industry : 'your industry'}'
+          '${_stage.isNotEmpty ? ' at $_stage stage' : ''}. I\'ll personalise my advice accordingly.';
     }
     return base;
   }
@@ -268,7 +269,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
   Future<void> _send(String text) async {
     if (text.trim().isEmpty) return;
     _ctrl.clear();
-    _focus.unfocus(); // dismiss keyboard immediately
+    _focus.unfocus();
     setState(() {
       _messages.add(_ChatMessage(text: text, isUser: true));
       _isTyping        = true;
@@ -277,7 +278,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
     _scrollToBottom();
 
     try {
-      final auth   = context.read<AuthProvider>();
+      final auth    = context.read<AuthProvider>();
       final profile =
           'Industry: ${_industry.isNotEmpty ? _industry : 'Not set'}, '
           'Stage: ${_stage.isNotEmpty ? _stage : 'Not set'}, '
@@ -336,8 +337,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
       builder: (_) => AlertDialog(
         title: Text('Clear Chat',
             style: GoogleFonts.montserrat(fontWeight: FontWeight.w700)),
-        content:
-            Text('Delete this conversation?', style: GoogleFonts.inter()),
+        content: Text('Delete this conversation?', style: GoogleFonts.inter()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -346,8 +346,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white),
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
             child: const Text('Clear'),
           ),
         ],
@@ -372,38 +371,28 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
   Widget build(BuildContext context) {
     final cfg = widget.config;
 
-    // ── THE REAL FIX for "bottom overflowed by 52 pixels" ────────────────
-    //
-    // resizeToAvoidBottomInset: false  →  Scaffold does NOT shrink its body.
-    //   (When it was true the Column never shrank properly because SafeArea
-    //    was inside the Column, not wrapping the Scaffold body.)
-    //
-    // viewInsets.bottom  →  exact pixel height of the on-screen keyboard.
-    //   We add this as bottom padding on the input bar so it rides
-    //   exactly above the keyboard at all times.
-    //
-    // SafeArea(bottom:false) on the outer body  →  handles status-bar / notch
-    //   at the top without consuming the bottom inset (we do that ourselves).
-    //
+    // KEY FIX: read keyboard height and safe-area bottom every frame.
+    // viewInsets.bottom = exact on-screen keyboard height (0 when closed).
+    // padding.bottom    = home indicator / nav bar safe area.
     final double keyboardH   = MediaQuery.of(context).viewInsets.bottom;
     final double safeBottomH = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      // IMPORTANT: false — we manually handle the keyboard inset below
+      // MUST be false — we manually pad the input bar with viewInsets.bottom.
+      // If true, Scaffold shrinks the body AND our padding adds more space → double gap.
       resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFFF0F2F7),
       body: SafeArea(
-        bottom: false, // bottom handled manually
+        bottom: false, // we handle bottom manually via viewInsets
         child: Column(
           children: [
 
             // ── HEADER ──────────────────────────────────────────────────
             _buildHeader(cfg),
 
-            // ── CHAT LIST ── takes all remaining vertical space ──────────
+            // ── CHAT LIST ───────────────────────────────────────────────
             Expanded(
               child: GestureDetector(
-                // tap anywhere in chat to dismiss keyboard
                 onTap: _focus.unfocus,
                 behavior: HitTestBehavior.opaque,
                 child: ListView.builder(
@@ -417,13 +406,13 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
               ),
             ),
 
-            // ── QUICK CHIPS ──────────────────────────────────────────────
+            // ── QUICK CHIPS ─────────────────────────────────────────────
             _buildChips(cfg),
 
-            // ── INPUT BAR ────────────────────────────────────────────────
-            // Bottom padding = keyboard height when open, or safe-area
-            // (home indicator) height when closed.  This is what keeps the
-            // bar above the keyboard without any overflow.
+            // ── INPUT BAR ───────────────────────────────────────────────
+            // bottom padding switches between:
+            //   • keyboard open  → keyboardH + 10  (sits just above keyboard)
+            //   • keyboard closed → safeBottomH + 10 (clears home indicator)
             Container(
               color: Colors.white,
               padding: EdgeInsets.only(
@@ -431,8 +420,8 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                 right:  14,
                 top:    10,
                 bottom: keyboardH > 0
-                    ? keyboardH + 10       // keyboard is open → sit above it
-                    : safeBottomH + 10,    // keyboard closed  → clear home bar
+                    ? keyboardH + 10
+                    : safeBottomH + 10,
               ),
               child: _buildInputRow(cfg),
             ),
@@ -455,7 +444,6 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
       ),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Row(children: [
-        // Back
         GestureDetector(
           onTap: () => Navigator.pop(context),
           child: Container(
@@ -469,7 +457,6 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        // Icon
         Container(
           width: 44, height: 44,
           decoration: BoxDecoration(
@@ -480,7 +467,6 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
           child: Icon(cfg.icon, color: cfg.color, size: 22),
         ),
         const SizedBox(width: 12),
-        // Title
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -497,7 +483,6 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
             ],
           ),
         ),
-        // Delete
         GestureDetector(
           onTap: _confirmClear,
           child: Container(
@@ -532,8 +517,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                       decoration: BoxDecoration(
                         color: const Color(0xFFF0F2F7),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: const Color(0xFFE5E7EB)),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
                       child: Text(chip,
                           style: GoogleFonts.inter(
@@ -559,10 +543,10 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
             border: Border.all(color: cfg.color.withOpacity(0.4)),
           ),
           child: TextField(
-            controller:       _ctrl,
-            focusNode:        _focus,
-            maxLines:         4,
-            minLines:         1,
+            controller:      _ctrl,
+            focusNode:       _focus,
+            maxLines:        4,
+            minLines:        1,
             style: GoogleFonts.inter(
                 fontSize: 14, color: const Color(0xFF1A1F36)),
             decoration: InputDecoration(
@@ -573,8 +557,8 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
               contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 11),
             ),
-            onSubmitted:      _send,
-            textInputAction:  TextInputAction.send,
+            onSubmitted:     _send,
+            textInputAction: TextInputAction.send,
           ),
         ),
       ),
@@ -602,16 +586,14 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
 
   // ── List item builder ─────────────────────────────────────────────────────
   Widget _buildItem(BuildContext context, int index) {
-    final industry  = _industry;
-    final stage     = _stage;
-    final cfg       = widget.config;
-    final showCtx   = _showSuggestions &&
+    final industry = _industry;
+    final stage    = _stage;
+    final cfg      = widget.config;
+    final showCtx  = _showSuggestions &&
         (industry.isNotEmpty || stage.isNotEmpty);
     final msgOffset = showCtx ? 1 : 0;
 
-    if (index == 0 && showCtx) {
-      return _buildContextBar(industry, stage);
-    }
+    if (index == 0 && showCtx) return _buildContextBar(industry, stage);
     if (_showSuggestions && index == msgOffset + _messages.length) {
       return _buildSuggestions(cfg);
     }
@@ -657,13 +639,11 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
               ),
               Text('Advice personalised to your business',
                   style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: const Color(0xFF6366F1))),
+                      fontSize: 10, color: const Color(0xFF6366F1))),
             ],
           ),
         ),
-        const Icon(Icons.verified,
-            color: Color(0xFF6366F1), size: 16),
+        const Icon(Icons.verified, color: Color(0xFF6366F1), size: 16),
       ]),
     );
   }
@@ -696,12 +676,10 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(13),
-                        border: Border.all(
-                            color: const Color(0xFFE5E7EB)),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
                         boxShadow: [
                           BoxShadow(
-                              color:
-                                  Colors.black.withOpacity(0.04),
+                              color: Colors.black.withOpacity(0.04),
                               blurRadius: 6),
                         ],
                       ),
@@ -709,20 +687,17 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(s.emoji,
-                              style:
-                                  const TextStyle(fontSize: 18)),
+                              style: const TextStyle(fontSize: 18)),
                           const SizedBox(height: 4),
                           Text(s.title,
                               style: GoogleFonts.inter(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color:
-                                      const Color(0xFF1A1F36))),
+                                  color: const Color(0xFF1A1F36))),
                           Text(s.subtitle,
                               style: GoogleFonts.inter(
                                   fontSize: 10,
-                                  color:
-                                      const Color(0xFF6B7280))),
+                                  color: const Color(0xFF6B7280))),
                         ],
                       ),
                     ),
@@ -776,18 +751,13 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                             ? const Color(0xFF1A3A7C)
                             : Colors.white,
                     borderRadius: BorderRadius.only(
-                      topLeft:
-                          const Radius.circular(16),
-                      topRight:
-                          const Radius.circular(16),
-                      bottomLeft:
-                          Radius.circular(isUser ? 16 : 4),
-                      bottomRight:
-                          Radius.circular(isUser ? 4 : 16),
+                      topLeft:     const Radius.circular(16),
+                      topRight:    const Radius.circular(16),
+                      bottomLeft:  Radius.circular(isUser ? 16 : 4),
+                      bottomRight: Radius.circular(isUser ? 4 : 16),
                     ),
                     border: isError
-                        ? Border.all(
-                            color: const Color(0xFFFFCDD2))
+                        ? Border.all(color: const Color(0xFFFFCDD2))
                         : null,
                     boxShadow: [
                       BoxShadow(
@@ -811,13 +781,11 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                 ),
                 if (isError && _lastFailedMessage.isNotEmpty)
                   Padding(
-                    padding:
-                        const EdgeInsets.only(top: 6, left: 4),
+                    padding: const EdgeInsets.only(top: 6, left: 4),
                     child: GestureDetector(
                       onTap: () {
                         final m = _lastFailedMessage;
-                        setState(
-                            () => _lastFailedMessage = '');
+                        setState(() => _lastFailedMessage = '');
                         _send(m);
                       },
                       child: Container(
@@ -825,8 +793,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: widget.config.color,
-                          borderRadius:
-                              BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -838,8 +805,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
                                 style: GoogleFonts.inter(
                                     color: Colors.white,
                                     fontSize: 12,
-                                    fontWeight:
-                                        FontWeight.w600)),
+                                    fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -854,7 +820,7 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
     );
   }
 
-  // ── Typing dots ───────────────────────────────────────────────────────────
+  // ── Typing indicator ──────────────────────────────────────────────────────
   Widget _buildTypingIndicator() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -870,8 +836,8 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
               color: widget.config.color, size: 14),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 12),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: const BorderRadius.only(
@@ -899,7 +865,9 @@ class _ChatAdvisorScreenState extends State<ChatAdvisorScreen> {
   }
 }
 
-// ── Typing dot animation ──────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPING DOT ANIMATION
+// ─────────────────────────────────────────────────────────────────────────────
 class _TypingDot extends StatefulWidget {
   final int delay;
   const _TypingDot({required this.delay});
@@ -917,8 +885,7 @@ class _TypingDotState extends State<_TypingDot>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 600))
+        vsync: this, duration: const Duration(milliseconds: 600))
       ..repeat(reverse: true);
     _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
     Future.delayed(Duration(milliseconds: widget.delay), () {
