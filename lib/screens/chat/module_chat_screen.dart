@@ -9,12 +9,12 @@ import 'package:empora/services/api_service.dart';
 import 'package:empora/theme/app_theme.dart';
 
 class ModuleChatScreen extends StatefulWidget {
-  final String module;
-  final String title;
-  final String subtitle;
+  final String   module;
+  final String   title;
+  final String   subtitle;
   final IconData icon;
-  final Color accentColor;
-  final String welcomeMessage;
+  final Color    accentColor;
+  final String   welcomeMessage;
   final List<String> suggestedQuestions;
 
   const ModuleChatScreen({
@@ -35,14 +35,14 @@ class ModuleChatScreen extends StatefulWidget {
 class _ModuleChatScreenState extends State<ModuleChatScreen>
     with TickerProviderStateMixin {
   final TextEditingController _inputController = TextEditingController();
-  final ScrollController _scrollController     = ScrollController();
-  final FocusNode _focusNode                   = FocusNode();
+  final ScrollController      _scrollController = ScrollController();
+  final FocusNode             _focusNode        = FocusNode();
 
-  List<ChatMessage> _messages   = [];
-  List<String>      _keyFacts   = [];
-  bool _isLoading               = false;
-  bool _isLoadingHistory        = true;
-  bool _isTyping                = false;
+  List<ChatMessage> _messages          = [];
+  List<String>      _keyFacts          = [];
+  bool              _isLoading         = false;
+  bool              _isLoadingHistory  = true;
+  bool              _isTyping          = false;
 
   late AnimationController _typingAnimController;
 
@@ -65,16 +65,17 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     super.dispose();
   }
 
+  // ── History ───────────────────────────────────────────────────────────────
   Future<void> _loadHistory() async {
     try {
-      final result = await ApiService.getChatHistory(module: widget.module);
+      final result    = await ApiService.getChatHistory(module: widget.module);
       final rawMessages = result['messages'] as List<dynamic>? ?? [];
       final rawFacts    = result['keyFacts']  as List<dynamic>? ?? [];
       setState(() {
         _messages = rawMessages
             .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
             .toList();
-        _keyFacts = rawFacts.map((f) => f.toString()).toList();
+        _keyFacts         = rawFacts.map((f) => f.toString()).toList();
         _isLoadingHistory = false;
       });
       _scrollToBottom();
@@ -83,15 +84,16 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     }
   }
 
+  // ── Send ──────────────────────────────────────────────────────────────────
   Future<void> _sendMessage([String? overrideText]) async {
     final text = (overrideText ?? _inputController.text).trim();
     if (text.isEmpty || _isLoading) return;
 
     _inputController.clear();
+    _focusNode.unfocus(); // dismiss keyboard on send
     setState(() {
       _messages.add(ChatMessage(
-        role: 'user', content: text, timestamp: DateTime.now(),
-      ));
+          role: 'user', content: text, timestamp: DateTime.now()));
       _isLoading = true;
       _isTyping  = true;
     });
@@ -102,12 +104,11 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
         module:  widget.module,
         message: text,
       );
-      final aiReply = result['message'] as String? ??
-          'Sorry, I could not respond. Please try again.';
+      final aiReply = result['message'] as String?
+          ?? 'Sorry, I could not respond. Please try again.';
       setState(() {
         _messages.add(ChatMessage(
-          role: 'assistant', content: aiReply, timestamp: DateTime.now(),
-        ));
+            role: 'assistant', content: aiReply, timestamp: DateTime.now()));
         _isLoading = false;
         _isTyping  = false;
       });
@@ -115,9 +116,8 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
-          role: 'assistant',
-          content:
-              '⚠️ Connection error. Please check your internet and try again.',
+          role:      'assistant',
+          content:   '⚠️ Connection error. Please check your internet and try again.',
           timestamp: DateTime.now(),
         ));
         _isLoading = false;
@@ -139,6 +139,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     });
   }
 
+  // ── Clear ─────────────────────────────────────────────────────────────────
   Future<void> _clearChat() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -183,24 +184,49 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // BUILD
+  // ─────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    // KEY FIX — same pattern as chat_advisor_screen:
+    //   resizeToAvoidBottomInset: false  →  Scaffold does NOT shrink body
+    //   viewInsets.bottom               →  exact live keyboard height
+    //   padding.bottom                  →  home-indicator / nav-bar height
+    //
+    // The input bar adds exactly one of these as bottom padding each frame,
+    // so it always sits just above the keyboard with no overflow.
+    final double keyboardH   = MediaQuery.of(context).viewInsets.bottom;
+    final double safeBottomH = MediaQuery.of(context).padding.bottom;
+
     return Scaffold(
+      resizeToAvoidBottomInset: false,   // we handle insets manually
       backgroundColor: AppTheme.surface,
       appBar: _buildAppBar(),
       body: Column(
         children: [
           if (_keyFacts.isNotEmpty) _buildMemoryBanner(),
-          Expanded(child: _buildMessageList()),
+
+          // Chat list — takes all remaining space
+          Expanded(
+            child: GestureDetector(
+              onTap: _focusNode.unfocus, // tap chat area to dismiss keyboard
+              behavior: HitTestBehavior.opaque,
+              child: _buildMessageList(),
+            ),
+          ),
+
           if (_isTyping) _buildTypingIndicator(),
           if (_messages.isEmpty && !_isLoadingHistory) _buildSuggestions(),
-          _buildInputBar(),
+
+          // Input bar — bottom padding = keyboard height OR safe area
+          _buildInputBar(keyboardH, safeBottomH),
         ],
       ),
     );
   }
 
-  // ─── App Bar ──────────────────────────────────────────────────────────────
+  // ── App Bar ───────────────────────────────────────────────────────────────
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: AppTheme.primary,
@@ -248,7 +274,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     );
   }
 
-  // ─── Memory Banner ────────────────────────────────────────────────────────
+  // ── Memory Banner ─────────────────────────────────────────────────────────
   Widget _buildMemoryBanner() {
     return Container(
       width: double.infinity,
@@ -256,8 +282,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
       decoration: BoxDecoration(
         color: widget.accentColor.withOpacity(0.07),
         border: Border(
-          bottom: BorderSide(color: widget.accentColor.withOpacity(0.15)),
-        ),
+            bottom: BorderSide(color: widget.accentColor.withOpacity(0.15))),
       ),
       child: Row(
         children: [
@@ -280,7 +305,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     );
   }
 
-  // ─── Message List ─────────────────────────────────────────────────────────
+  // ── Message List ──────────────────────────────────────────────────────────
   Widget _buildMessageList() {
     if (_isLoadingHistory) {
       return Center(
@@ -292,12 +317,11 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       itemCount: _messages.length,
-      itemBuilder: (context, index) =>
-          _buildMessageBubble(_messages[index]),
+      itemBuilder: (context, index) => _buildMessageBubble(_messages[index]),
     );
   }
 
-  // ─── Welcome View ─────────────────────────────────────────────────────────
+  // ── Welcome View ──────────────────────────────────────────────────────────
   Widget _buildWelcomeView() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -316,10 +340,9 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
           Text(
             'Hi! I\'m your ${widget.title}',
             style: GoogleFonts.montserrat(
-              color: AppTheme.textPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-            ),
+                color: AppTheme.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
@@ -334,7 +357,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     );
   }
 
-  // ─── Message Bubble ───────────────────────────────────────────────────────
+  // ── Message Bubble ────────────────────────────────────────────────────────
   Widget _buildMessageBubble(ChatMessage msg) {
     final isUser = msg.isUser;
     return Padding(
@@ -351,8 +374,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
                 color: widget.accentColor.withOpacity(0.12),
                 shape: BoxShape.circle,
               ),
-              child:
-                  Icon(widget.icon, color: widget.accentColor, size: 16),
+              child: Icon(widget.icon, color: widget.accentColor, size: 16),
             ),
             const SizedBox(width: 8),
           ],
@@ -411,7 +433,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     );
   }
 
-  // ─── Typing Indicator ─────────────────────────────────────────────────────
+  // ── Typing Indicator ──────────────────────────────────────────────────────
   Widget _buildTypingIndicator() {
     return Padding(
       padding: const EdgeInsets.only(left: 16, bottom: 8),
@@ -427,8 +449,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
           ),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -441,9 +462,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
                 ),
               ],
             ),
-            child: Row(
-              children: List.generate(3, (i) => _buildDot(i)),
-            ),
+            child: Row(children: List.generate(3, _buildDot)),
           ),
         ],
       ),
@@ -454,13 +473,11 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     return AnimatedBuilder(
       animation: _typingAnimController,
       builder: (_, __) {
-        final offset  = (index * 0.3);
-        final opacity =
-            ((_typingAnimController.value - offset).clamp(0.0, 1.0));
+        final offset  = index * 0.3;
+        final opacity = ((_typingAnimController.value - offset).clamp(0.0, 1.0));
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 2),
-          width: 6,
-          height: 6,
+          width: 6, height: 6,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: widget.accentColor.withOpacity(0.3 + opacity * 0.7),
@@ -470,7 +487,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     );
   }
 
-  // ─── Suggested Questions ──────────────────────────────────────────────────
+  // ── Suggested Questions ───────────────────────────────────────────────────
   Widget _buildSuggestions() {
     return Container(
       height: 44,
@@ -500,13 +517,11 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
                   ),
                 ],
               ),
-              child: Text(
-                q,
-                style: GoogleFonts.inter(
-                    color: widget.accentColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500),
-              ),
+              child: Text(q,
+                  style: GoogleFonts.inter(
+                      color: widget.accentColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500)),
             ),
           );
         },
@@ -514,14 +529,18 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
     );
   }
 
-  // ─── Input Bar ────────────────────────────────────────────────────────────
-  Widget _buildInputBar() {
+  // ── Input Bar ─────────────────────────────────────────────────────────────
+  Widget _buildInputBar(double keyboardH, double safeBottomH) {
     return Container(
       padding: EdgeInsets.only(
-        left: 16,
-        right: 12,
-        top: 10,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+        left:   16,
+        right:  12,
+        top:    10,
+        // keyboard open  → sit just above keyboard
+        // keyboard closed → clear home indicator bar
+        bottom: keyboardH > 0
+            ? keyboardH + 12
+            : safeBottomH + 12,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -538,16 +557,15 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
         children: [
           Expanded(
             child: TextField(
-              controller: _inputController,
-              focusNode:  _focusNode,
+              controller:          _inputController,
+              focusNode:           _focusNode,
               style: GoogleFonts.inter(
                   color: AppTheme.textPrimary, fontSize: 14),
-              maxLines: 4,
-              minLines: 1,
-              textCapitalization: TextCapitalization.sentences,
+              maxLines:            4,
+              minLines:            1,
+              textCapitalization:  TextCapitalization.sentences,
               decoration: InputDecoration(
-                hintText:
-                    'Ask your ${widget.title.toLowerCase()}...',
+                hintText: 'Ask your ${widget.title.toLowerCase()}...',
                 hintStyle: GoogleFonts.inter(
                     color: AppTheme.textSecondary, fontSize: 14),
                 filled:    true,
@@ -576,8 +594,7 @@ class _ModuleChatScreenState extends State<ModuleChatScreen>
             onTap: _isLoading ? null : _sendMessage,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              width: 46,
-              height: 46,
+              width: 46, height: 46,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: _isLoading
